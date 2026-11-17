@@ -1,16 +1,16 @@
-from modules.recommender import get_recommendation_summary
 
-from modules.component_database import (
-    get_all_components,
-    search_components
-)
 import streamlit as st
 from google import genai
 from google.genai import types
 
+from modules.component_database import get_all_components
+from modules.recommender import get_recommendation_summary
+from modules.recommendation_ui import display_recommendations
+
+
 # ==================================================
-# ELECTROMIND AI - VERSION 1.1
-# Gemini-powered Electronics Assistant
+# ELECTROMIND AI - VERSION 1.2
+# Gemini + Component Database Integration
 # ==================================================
 
 st.set_page_config(
@@ -19,6 +19,7 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 
 # ---------------- SESSION STATE ----------------
 
@@ -30,6 +31,10 @@ if "project_started" not in st.session_state:
 
 if "api_error" not in st.session_state:
     st.session_state.api_error = ""
+
+if "recommendation_result" not in st.session_state:
+    st.session_state.recommendation_result = None
+
 
 # ---------------- CONFIGURATION ----------------
 
@@ -105,6 +110,7 @@ If a user asks something unrelated to electronics, politely explain
 that ElectroMind AI currently specializes in electronics projects.
 """
 
+
 # ---------------- CUSTOM CSS ----------------
 
 st.markdown("""
@@ -137,9 +143,11 @@ div[data-testid="stChatMessage"] {
 </style>
 """, unsafe_allow_html=True)
 
+
 # ---------------- GEMINI CLIENT ----------------
 
 def get_gemini_client():
+
     api_key = st.secrets.get("GEMINI_API_KEY", "")
 
     if not api_key:
@@ -152,13 +160,19 @@ def get_gemini_client():
 
 
 def generate_ai_response(history, user_input):
+
     client = get_gemini_client()
 
-    # Build conversation context from previous messages.
     conversation = []
 
     for message in history:
-        role = "User" if message["role"] == "user" else "ElectroMind AI"
+
+        role = (
+            "User"
+            if message["role"] == "user"
+            else "ElectroMind AI"
+        )
+
         conversation.append(
             f"{role}: {message['content']}"
         )
@@ -183,16 +197,63 @@ def generate_ai_response(history, user_input):
     return response.text
 
 
+# ---------------- DATABASE MATCHING ----------------
+
+def find_database_mentions(ai_response):
+
+    """
+    Find component names from our database
+    that appear in Gemini's response.
+    """
+
+    components = get_all_components()
+
+    response_text = ai_response.lower()
+
+    matched_names = []
+
+    for component in components:
+
+        component_name = component.get("name", "")
+
+        if (
+            component_name
+            and component_name.lower() in response_text
+        ):
+            matched_names.append(component_name)
+
+    return matched_names
+
+
+def process_recommendations(ai_response):
+
+    """
+    Match component names mentioned by Gemini
+    against our local component database.
+    """
+
+    matched_names = find_database_mentions(ai_response)
+
+    if not matched_names:
+        return None
+
+    result = get_recommendation_summary(matched_names)
+
+    return result["details"]
+
+
 # ---------------- SIDEBAR ----------------
 
 with st.sidebar:
 
     st.markdown("# ⚡ ElectroMind AI")
+
     st.caption("Your Electronic Engineering Assistant")
 
     st.divider()
 
     st.markdown("### Navigation")
+
     st.info("💬 Component Recommender")
 
     st.markdown("### Capabilities")
@@ -207,21 +268,26 @@ with st.sidebar:
     st.divider()
 
     st.markdown("### AI Engine")
+
     st.success("Gemini AI Connected")
 
     st.caption(f"Model: {MODEL_NAME}")
 
     st.divider()
 
-    if st.button("🗑️ New Conversation", use_container_width=True):
+    if st.button(
+        "🗑️ New Conversation",
+        use_container_width=True
+    ):
 
         st.session_state.messages = []
         st.session_state.project_started = False
         st.session_state.api_error = ""
+        st.session_state.recommendation_result = None
 
         st.rerun()
 
-    st.caption("ElectroMind AI | Version 1.1")
+    st.caption("ElectroMind AI | Version 1.2")
 
 
 # ---------------- MAIN HEADER ----------------
@@ -285,8 +351,6 @@ user_input = st.chat_input(
 
 if user_input:
 
-    # Display and save user message.
-
     st.session_state.messages.append({
         "role": "user",
         "content": user_input
@@ -297,11 +361,11 @@ if user_input:
     with st.chat_message("user"):
         st.markdown(user_input)
 
-    # Generate Gemini response.
-
     with st.chat_message("assistant"):
 
-        with st.spinner("ElectroMind AI is analysing your requirements..."):
+        with st.spinner(
+            "ElectroMind AI is analysing your requirements..."
+        ):
 
             try:
 
@@ -317,6 +381,16 @@ if user_input:
                     "content": response
                 })
 
+                # Match component names mentioned in the response.
+                recommendation_result = process_recommendations(
+                    response
+                )
+
+                if recommendation_result:
+                    st.session_state.recommendation_result = (
+                        recommendation_result
+                    )
+
                 st.session_state.api_error = ""
 
             except Exception as error:
@@ -329,78 +403,55 @@ if user_input:
                 )
 
                 if "API key is missing" in error_message:
+
                     st.warning(
                         "Please configure GEMINI_API_KEY "
                         "in Streamlit Secrets."
                     )
 
-                elif "429" in error_message or "RESOURCE_EXHAUSTED" in error_message:
+                elif (
+                    "429" in error_message
+                    or "RESOURCE_EXHAUSTED" in error_message
+                ):
+
                     st.warning(
                         "Gemini API usage limit reached. "
                         "Please check your API quota and try again later."
                     )
 
-                elif "403" in error_message or "PERMISSION_DENIED" in error_message:
+                elif (
+                    "403" in error_message
+                    or "PERMISSION_DENIED" in error_message
+                ):
+
                     st.warning(
                         "API access was denied. Check your API key "
                         "and model access in Google AI Studio."
                     )
 
                 else:
+
                     st.caption(
                         "Technical error: " + error_message[:500]
                     )
 
-                # Remove failed user message so it can be retried.
                 st.session_state.messages.pop()
 
                 st.session_state.api_error = error_message
 
-# Component Database Test
-st.sidebar.divider()
-st.sidebar.subheader("Database Test")
 
-components = get_all_components()
-st.sidebar.write(f"Total components: {len(components)}")
+# ---------------- COMPONENT RECOMMENDATIONS ----------------
 
-search_query = st.sidebar.text_input("Search components")
+if st.session_state.recommendation_result:
 
-if search_query:
-    results = search_components(search_query)
+    st.divider()
 
-    for component in results:
-        st.sidebar.write(component["name"])
-
-
-# Recommendation Matching Test
-
-st.sidebar.divider()
-st.sidebar.subheader("Recommendation Test")
-
-test_names = [
-    "ESP32 Development Board",
-    "DHT22 Sensor",
-    "Arduino Uno",
-    "Unknown Component"
-]
-
-if st.sidebar.button("Test Recommendation Matching"):
-    result = get_recommendation_summary(test_names)
-
-    st.sidebar.write(
-        f"Verified: {result['total_verified']}"
+    display_recommendations(
+        st.session_state.recommendation_result
     )
 
-    st.sidebar.write(
-        f"Unverified: {result['total_unverified']}"
+    st.caption(
+        "Database matches indicate catalogue entries only. "
+        "They do not establish electrical compatibility or "
+        "confirm datasheet specifications."
     )
-
-    st.sidebar.write("Verified components:")
-
-    for component in result["details"]["verified_components"]:
-        st.sidebar.write("✅ " + component["name"])
-
-    st.sidebar.write("Unverified components:")
-
-    for name in result["details"]["unverified_components"]:
-        st.sidebar.write("⚠️ " + name)
