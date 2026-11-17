@@ -11,14 +11,28 @@ def calculate_bom(components):
         st.info("No components available.")
         return
 
-    bom_items = []
+    # Budget input
+    st.markdown("### 💰 Set Your Project Budget")
 
-    st.write("Enter the quantity required for each component:")
+    budget = st.number_input(
+        "Enter your budget (₹)",
+        min_value=0,
+        value=3000,
+        step=100,
+        key="project_budget"
+    )
+
+    st.divider()
+
+    # Component selection
+    st.markdown("### 🔧 Select Required Components")
+
+    bom_items = []
 
     for component in components:
 
         component_id = component.get("id", "")
-        name = component.get("name", "Unknown component")
+        name = component.get("name", "Unknown")
         price = component.get("price", 0)
 
         quantity = st.number_input(
@@ -39,6 +53,7 @@ def calculate_bom(components):
                 "Total Price (₹)": quantity * price
             })
 
+    # Calculate results
     if bom_items:
 
         st.divider()
@@ -60,7 +75,38 @@ def calculate_bom(components):
             f"₹{grand_total:,.2f}"
         )
 
-        # Download BOM as CSV
+        # Budget comparison
+        st.markdown("### 📊 Budget Analysis")
+
+        if budget > 0:
+
+            remaining = budget - grand_total
+
+            if remaining >= 0:
+
+                st.success(
+                    f"✅ Within Budget! You have ₹{remaining:,.2f} remaining."
+                )
+
+            else:
+
+                st.error(
+                    f"⚠️ Over Budget! You need ₹{abs(remaining):,.2f} extra."
+                )
+
+            st.progress(
+                min(grand_total / budget, 1.0)
+            )
+
+            st.caption(
+                f"Budget used: {(grand_total / budget) * 100:.1f}%"
+            )
+
+        else:
+
+            st.warning("Enter a budget greater than ₹0 to compare costs.")
+
+        # Download BOM
         csv_data = bom_df.to_csv(index=False).encode("utf-8")
 
         st.download_button(
@@ -73,5 +119,6 @@ def calculate_bom(components):
     else:
 
         st.info(
-            "Select quantities above to generate your Bill of Materials."
+            "Select component quantities to generate your BOM."
         )
+
