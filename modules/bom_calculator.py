@@ -1,124 +1,137 @@
-
 import streamlit as st
 import pandas as pd
 
 
-def calculate_bom(components):
+def calculate_bom(all_components, recommended_components=None):
+    recommended_components = recommended_components or []
 
-    st.subheader("🧾 Project Bill of Materials")
-
-    if not components:
-        st.info("No components available.")
-        return
-
-    # Budget input
-    st.markdown("### 💰 Set Your Project Budget")
+    st.write(
+        "Choose quantities for your project. Recommended components "
+        "are included first; you can add other catalog components too."
+    )
 
     budget = st.number_input(
-        "Enter your budget (₹)",
+        "Enter your project budget (₹)",
         min_value=0,
         value=3000,
         step=100,
         key="project_budget"
     )
 
-    st.divider()
+    selected_items = {}
 
-    # Component selection
-    st.markdown("### 🔧 Select Required Components")
+    # Recommended components
+    if recommended_components:
+        st.subheader("⭐ AI-recommended components")
 
-    bom_items = []
+        for index, component in enumerate(recommended_components):
+            name = component.get("name", "Unknown component")
+            price = float(component.get("price", 0) or 0)
 
-    for component in components:
+            quantity = st.number_input(
+                f"{name} — ₹{price:.0f} each",
+                min_value=0,
+                max_value=100,
+                value=1,
+                step=1,
+                key=f"recommended_quantity_{index}_{component.get('id', index)}"
+            )
 
-        component_id = component.get("id", "")
-        name = component.get("name", "Unknown")
-        price = component.get("price", 0)
-
-        quantity = st.number_input(
-            f"{name} — ₹{price} each",
-            min_value=0,
-            max_value=100,
-            value=0,
-            step=1,
-            key=f"bom_{component_id}"
+            if quantity > 0:
+                selected_items[component.get("id", name)] = {
+                    "name": name,
+                    "price": price,
+                    "quantity": quantity
+                }
+    else:
+        st.info(
+            "No catalog recommendations have been detected yet. "
+            "You can build a BOM manually below."
         )
 
-        if quantity > 0:
+    # Manual component selection
+    recommended_ids = {
+        component.get("id") for component in recommended_components
+    }
 
-            bom_items.append({
-                "Component": name,
-                "Quantity": quantity,
-                "Unit Price (₹)": price,
-                "Total Price (₹)": quantity * price
+    with st.expander("➕ Add more components manually"):
+        for index, component in enumerate(all_components):
+            component_id = component.get("id", str(index))
+
+            if component_id in recommended_ids:
+                continue
+
+            name = component.get("name", "Unknown component")
+            price = float(component.get("price", 0) or 0)
+
+            quantity = st.number_input(
+                f"{name} — ₹{price:.0f} each",
+                min_value=0,
+                max_value=100,
+                value=0,
+                step=1,
+                key=f"manual_quantity_{component_id}"
+            )
+
+            if quantity > 0:
+                selected_items[component_id] = {
+                    "name": name,
+                    "price": price,
+                    "quantity": quantity
+                }
+
+    # Build BOM
+    if selected_items:
+        rows = []
+
+        for item in selected_items.values():
+            total_price = item["price"] * item["quantity"]
+
+            rows.append({
+                "Component": item["name"],
+                "Quantity": item["quantity"],
+                "Unit Price (₹)": item["price"],
+                "Total Price (₹)": total_price
             })
 
-    # Calculate results
-    if bom_items:
+        dataframe = pd.DataFrame(rows)
 
-        st.divider()
+        total_cost = dataframe["Total Price (₹)"].sum()
+        remaining = budget - total_cost
 
-        st.markdown("### 📋 Your Selected Components")
+        st.subheader("📋 Your Bill of Materials")
+        st.dataframe(dataframe, use_container_width=True, hide_index=True)
 
-        bom_df = pd.DataFrame(bom_items)
+        col1, col2 = st.columns(2)
 
-        st.dataframe(
-            bom_df,
-            use_container_width=True,
-            hide_index=True
-        )
+        with col1:
+            st.metric("Estimated project cost", f"₹{total_cost:,.2f}")
 
-        grand_total = bom_df["Total Price (₹)"].sum()
+        with col2:
+            st.metric(
+                "Budget remaining",
+                f"₹{remaining:,.2f}" if remaining >= 0
+                else f"₹{abs(remaining):,.2f} over budget"
+            )
 
-        st.metric(
-            "Estimated Project Cost",
-            f"₹{grand_total:,.2f}"
-        )
-
-        # Budget comparison
-        st.markdown("### 📊 Budget Analysis")
+        if total_cost > budget:
+            st.error("Your selected components exceed your budget.")
+        elif total_cost == budget:
+            st.success("Your selected components use your full budget.")
+        else:
+            st.success("Your selected components are within your budget.")
 
         if budget > 0:
+            st.progress(min(total_cost / budget, 1.0))
 
-            remaining = budget - grand_total
-
-            if remaining >= 0:
-
-                st.success(
-                    f"✅ Within Budget! You have ₹{remaining:,.2f} remaining."
-                )
-
-            else:
-
-                st.error(
-                    f"⚠️ Over Budget! You need ₹{abs(remaining):,.2f} extra."
-                )
-
-            st.progress(
-                min(grand_total / budget, 1.0)
-            )
-
-            st.caption(
-                f"Budget used: {(grand_total / budget) * 100:.1f}%"
-            )
-
-        else:
-
-            st.warning("Enter a budget greater than ₹0 to compare costs.")
-
-        # Download BOM
-        csv_data = bom_df.to_csv(index=False).encode("utf-8")
+        csv_data = dataframe.to_csv(index=False).encode("utf-8")
 
         st.download_button(
-            label="📥 Download BOM as CSV",
+            label="⬇️ Download BOM as CSV",
             data=csv_data,
-            file_name="ElectroMind_Project_BOM.csv",
+            file_name="electromind_project_bom.csv",
             mime="text/csv"
         )
 
     else:
-
-        st.info(
-            "Select component quantities to generate your BOM."
-        )
-
+        st.info("Select at least one component to generate your BOM.")
