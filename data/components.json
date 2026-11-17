@@ -1,66 +1,165 @@
 
-import json
-from pathlib import Path
-
-
-def load_components():
-    """Load electronics components from the JSON database."""
-
-    database_path = (
-        Path(__file__).resolve().parent.parent
-        / "data"
-        / "components.json"
-    )
-
-    try:
-        with open(database_path, "r", encoding="utf-8") as file:
-            data = json.load(file)
-
-        return data.get("components", [])
-
-    except FileNotFoundError:
-        return []
-
-    except json.JSONDecodeError:
-        return []
-
-
-def get_all_components():
-    """Return all components."""
-
-    return load_components()
-
-
-def search_components(keyword):
-    """Search components by name, category, ID, or description."""
-
-    components = load_components()
-    keyword = keyword.strip().lower()
-
-    if not keyword:
-        return components
-
-    results = []
-
-    for component in components:
-        searchable_text = " ".join([
-            component.get("id", ""),
-            component.get("name", ""),
-            component.get("category", ""),
-            component.get("description", "")
-        ]).lower()
-
-        if keyword in searchable_text:
-            results.append(component)
-
-    return results
-
-
-def get_component_by_id(component_id):
-    """Find a component using its unique ID."""
-
-    for component in load_components():
-        if component.get("id", "").lower() == component_id.lower():
-            return component
-
-    return None
+{
+  "components": [
+    {
+      "id": "ESP32-DEVKIT",
+      "name": "ESP32 Development Board",
+      "category": "Microcontroller",
+      "voltage": "3.3V logic, 5V USB input",
+      "interfaces": ["Wi-Fi", "Bluetooth", "GPIO", "I2C", "SPI", "UART", "PWM"],
+      "description": "Wi-Fi and Bluetooth enabled microcontroller development board."
+    },
+    {
+      "id": "ARDUINO-UNO",
+      "name": "Arduino Uno",
+      "category": "Microcontroller",
+      "voltage": "5V logic",
+      "interfaces": ["GPIO", "I2C", "SPI", "UART", "PWM"],
+      "description": "Beginner-friendly microcontroller board."
+    },
+    {
+      "id": "NODEMCU-ESP8266",
+      "name": "NodeMCU ESP8266",
+      "category": "Microcontroller",
+      "voltage": "3.3V logic",
+      "interfaces": ["Wi-Fi", "GPIO", "I2C", "SPI", "UART", "PWM"],
+      "description": "Affordable Wi-Fi development board."
+    },
+    {
+      "id": "DHT11",
+      "name": "DHT11 Sensor",
+      "category": "Sensor",
+      "voltage": "3.3V–5V",
+      "interfaces": ["Digital"],
+      "description": "Basic temperature and humidity sensor."
+    },
+    {
+      "id": "DHT22",
+      "name": "DHT22 Sensor",
+      "category": "Sensor",
+      "voltage": "3.3V–5.5V",
+      "interfaces": ["Digital"],
+      "description": "Temperature and humidity sensor with better accuracy than DHT11."
+    },
+    {
+      "id": "HC-SR04",
+      "name": "HC-SR04 Ultrasonic Sensor",
+      "category": "Sensor",
+      "voltage": "5V",
+      "interfaces": ["Digital"],
+      "description": "Measures distance using ultrasonic waves."
+    },
+    {
+      "id": "PIR-HC-SR501",
+      "name": "PIR Motion Sensor",
+      "category": "Sensor",
+      "voltage": "5V",
+      "interfaces": ["Digital"],
+      "description": "Detects movement using infrared radiation."
+    },
+    {
+      "id": "LDR",
+      "name": "LDR Light Sensor",
+      "category": "Sensor",
+      "voltage": "Depends on circuit",
+      "interfaces": ["Analog"],
+      "description": "Detects light intensity using a photoresistor."
+    },
+    {
+      "id": "MQ2",
+      "name": "MQ-2 Gas Sensor",
+      "category": "Sensor",
+      "voltage": "5V heater supply",
+      "interfaces": ["Analog", "Digital"],
+      "description": "Detects combustible gases and smoke; requires calibration."
+    },
+    {
+      "id": "RELAY-1CH",
+      "name": "1-Channel Relay Module",
+      "category": "Actuator",
+      "voltage": "Module-dependent",
+      "interfaces": ["Digital"],
+      "description": "Controls an external load using a relay. Verify trigger voltage and contact ratings."
+    },
+    {
+      "id": "RELAY-4CH",
+      "name": "4-Channel Relay Module",
+      "category": "Actuator",
+      "voltage": "Module-dependent",
+      "interfaces": ["Digital"],
+      "description": "Controls up to four separate loads. Verify trigger voltage and contact ratings."
+    },
+    {
+      "id": "RELAY-8CH",
+      "name": "8-Channel Relay Module",
+      "category": "Actuator",
+      "voltage": "Module-dependent",
+      "interfaces": ["Digital"],
+      "description": "Controls up to eight separate loads. Verify trigger voltage and contact ratings."
+    },
+    {
+      "id": "SG90",
+      "name": "SG90 Servo Motor",
+      "category": "Actuator",
+      "voltage": "Typically 4.8V–6V",
+      "interfaces": ["PWM"],
+      "description": "Small servo motor for position control."
+    },
+    {
+      "id": "L298N",
+      "name": "L298N Motor Driver",
+      "category": "Motor Driver",
+      "voltage": "Module-dependent",
+      "interfaces": ["GPIO", "PWM"],
+      "description": "Dual H-bridge motor driver for controlling DC motors."
+    },
+    {
+      "id": "OLED-SSD1306",
+      "name": "0.96-inch OLED Display",
+      "category": "Display",
+      "voltage": "Module-dependent",
+      "interfaces": ["I2C"],
+      "description": "Small OLED display commonly used with microcontrollers."
+    },
+    {
+      "id": "LCD-1602",
+      "name": "16x2 LCD Display",
+      "category": "Display",
+      "voltage": "Typically 5V",
+      "interfaces": ["Parallel", "I2C"],
+      "description": "Character display for showing text and sensor readings."
+    },
+    {
+      "id": "BUZZER",
+      "name": "Active Buzzer",
+      "category": "Output",
+      "voltage": "Module-dependent",
+      "interfaces": ["Digital"],
+      "description": "Produces an audible alert when activated."
+    },
+    {
+      "id": "NEO6M",
+      "name": "NEO-6M GPS Module",
+      "category": "Communication",
+      "voltage": "Module-dependent",
+      "interfaces": ["UART"],
+      "description": "GPS receiver for location and positioning projects."
+    },
+    {
+      "id": "HC05",
+      "name": "HC-05 Bluetooth Module",
+      "category": "Communication",
+      "voltage": "Module-dependent",
+      "interfaces": ["UART", "Bluetooth"],
+      "description": "Bluetooth serial communication module."
+    },
+    {
+      "id": "INA219",
+      "name": "INA219 Current Sensor",
+      "category": "Sensor",
+      "voltage": "Module-dependent",
+      "interfaces": ["I2C"],
+      "description": "Measures bus voltage and current using a shunt resistor."
+    }
+  ]
+}
