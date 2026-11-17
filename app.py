@@ -1,24 +1,50 @@
-from modules.bom_calculator import calculate_bom
 import streamlit as st
 from google import genai
-from google.genai import types
 
 from modules.component_database import get_all_components
-from modules.recommender import get_recommendation_summary
+from modules.recommender import match_recommendations
 from modules.recommendation_ui import display_recommendations
+from modules.bom_calculator import calculate_bom
 
 
-# ==================================================
-# ELECTROMIND AI - VERSION 1.2
-# Gemini + Component Database Integration
-# ==================================================
+# ---------------- PAGE SETTINGS ----------------
 
 st.set_page_config(
     page_title="ElectroMind AI",
     page_icon="⚡",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
+
+st.title("⚡ ElectroMind AI")
+st.caption("Your AI assistant for electronics and project component recommendations.")
+
+st.markdown("""
+<style>
+.stApp {
+    background-color: #101827;
+    color: #f4f7fb;
+}
+[data-testid="stChatMessage"] {
+    background-color: #1b293b;
+    border-radius: 12px;
+}
+.stButton button {
+    border-radius: 8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+# ---------------- API CONNECTION ----------------
+
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+    client = genai.Client(api_key=api_key)
+except Exception:
+    client = None
+
+
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 # ---------------- SESSION STATE ----------------
@@ -26,442 +52,199 @@ st.set_page_config(
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "project_started" not in st.session_state:
-    st.session_state.project_started = False
-
-if "api_error" not in st.session_state:
-    st.session_state.api_error = ""
-
 if "recommendation_result" not in st.session_state:
     st.session_state.recommendation_result = None
 
+if "project_started" not in st.session_state:
+    st.session_state.project_started = False
 
-# ---------------- CONFIGURATION ----------------
 
-MODEL_NAME = "gemini-3.5-flash-lite"
+# ---------------- COMPONENT DATABASE ----------------
 
-SYSTEM_INSTRUCTION = """
-You are ElectroMind AI, an expert electronics engineering assistant.
+all_components = get_all_components()
 
-YOUR DOMAIN:
-You ONLY handle electronics and electrical hardware projects,
-including embedded systems, microcontrollers, sensors, actuators,
-power supplies, circuits, PCB components and communication modules.
 
-YOUR MAIN TASK:
-Understand the user's project requirements through an adaptive
-conversation and eventually recommend suitable electronic components.
+# ---------------- AI INSTRUCTIONS ----------------
 
-CONVERSATION RULES:
+SYSTEM_PROMPT = """
+You are ElectroMind AI, an expert electronics project assistant.
 
-1. Start by understanding the user's project idea.
-2. Ask ONE useful question at a time.
-3. Never ask questions whose answers the user has already provided.
-4. Adapt your next question based on previous answers.
-5. Ask about relevant requirements such as:
-   - Project purpose
-   - Budget and currency
-   - Existing components
-   - Controller preference
-   - Sensors and actuators
-   - Power supply
-   - Operating environment
-   - Required accuracy and performance
-   - Connectivity
-   - Size constraints
-   - User's experience level
-6. Skip irrelevant questions.
-7. Do not force a fixed number of questions.
-8. Once sufficient information is collected, summarize the requirements
-   and ask the user to confirm before proceeding to recommendations.
+Your job is to help users plan electronics projects and choose suitable
+electronic components.
 
-RECOMMENDATION RULES:
+IMPORTANT RULES:
 
-When enough information is available:
-- Recommend suitable components.
-- Explain why each component is selected.
-- Suggest alternatives.
-- Explain operating voltage and current requirements.
-- Explain interfaces and pin connections.
-- Estimate the project cost only when pricing information is available.
-- Clearly identify assumptions and missing information.
+1. Only help with electronics, embedded systems, robotics, IoT,
+   sensors, microcontrollers, circuits and related engineering projects.
+2. If the user's project details are incomplete, ask ONE useful question
+   at a time.
+3. Ask about project purpose, budget, controller, sensors, outputs,
+   power supply, connectivity, environment and user experience when relevant.
+4. Do not ask questions that the user has already answered.
+5. Once you have enough information, provide a clear project plan.
+6. Recommend exact component names from this catalog whenever suitable:
 
-IMPORTANT TECHNICAL SAFETY:
+ESP32 Development Board
+Arduino Uno
+NodeMCU ESP8266
+DHT11 Sensor
+DHT22 Sensor
+HC-SR04 Ultrasonic Sensor
+PIR HC-SR501
+LDR Sensor
+MQ-2 Gas Sensor
+1-Channel Relay Module
+4-Channel Relay Module
+8-Channel Relay Module
+SG90 Servo Motor
+L298N Motor Driver
+0.96-inch OLED SSD1306
+16x2 LCD Display
+Active Buzzer
+NEO-6M GPS Module
+HC-05 Bluetooth Module
+INA219 Current Sensor
 
-- Never invent datasheet specifications.
-- Never claim electrical compatibility without checking it.
-- Distinguish logic voltage from supply voltage.
-- Mention current and power supply limitations.
-- Never suggest connecting motors directly to microcontroller GPIO pins.
-- Warn users about mains voltage, high voltage, batteries and
-  other potentially dangerous circuits.
-- Do not present unverified wiring instructions as safe.
-- Recommend qualified supervision for hazardous circuits.
+7. If a suitable component is not in the catalog, you may mention it,
+   but clearly say it is not in the current ElectroMind database.
+8. Never invent component prices, electrical ratings, pinouts or
+   compatibility claims.
+9. Explain why each recommended component is needed.
+10. Include a practical safety warning when mains voltage, motors,
+    batteries, high current or other hazards are involved.
+11. Do not claim that a circuit is electrically safe just because
+    two components have similar interfaces or voltage labels.
+12. Keep answers clear and useful for students and makers.
 
-COMMUNICATION STYLE:
-
-- Friendly and professional.
-- Beginner-friendly explanations.
-- Use clear headings and bullet points when useful.
-- Avoid unnecessarily long answers.
-- Ask only one main follow-up question per response.
-
-If a user asks something unrelated to electronics, politely explain
-that ElectroMind AI currently specializes in electronics projects.
+When ready, format recommendations with component names exactly as
+they appear in the catalog so ElectroMind can identify them.
 """
 
 
-# ---------------- CUSTOM CSS ----------------
+# ---------------- AI RESPONSE FUNCTION ----------------
 
-st.markdown("""
-<style>
-.stApp {
-    background-color: #0b1120;
-    color: #ffffff;
-}
-
-.main-title {
-    font-size: 38px;
-    font-weight: 800;
-    color: #38bdf8;
-}
-
-.subtitle {
-    color: #94a3b8;
-    font-size: 16px;
-}
-
-div[data-testid="stChatMessage"] {
-    border: 1px solid #263449;
-    border-radius: 12px;
-    padding: 12px;
-}
-
-.stButton button {
-    border-radius: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# ---------------- GEMINI CLIENT ----------------
-
-def get_gemini_client():
-
-    api_key = st.secrets.get("GEMINI_API_KEY", "")
-
-    if not api_key:
-        raise ValueError(
-            "Gemini API key is missing. "
-            "Please configure GEMINI_API_KEY in Streamlit Secrets."
+def generate_ai_response(user_message):
+    if client is None:
+        return (
+            "Gemini API connection is not configured. "
+            "Please check that GEMINI_API_KEY is saved in Streamlit Secrets."
         )
 
-    return genai.Client(api_key=api_key)
+    conversation = SYSTEM_PROMPT + "\n\n"
 
+    for message in st.session_state.messages:
+        role = message["role"].upper()
+        conversation += f"{role}: {message['content']}\n\n"
 
-def generate_ai_response(history, user_input):
+    conversation += f"USER: {user_message}\n\nASSISTANT:"
 
-    client = get_gemini_client()
-
-    conversation = []
-
-    for message in history:
-
-        role = (
-            "User"
-            if message["role"] == "user"
-            else "ElectroMind AI"
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=conversation
         )
-
-        conversation.append(
-            f"{role}: {message['content']}"
-        )
-
-    conversation.append(f"User: {user_input}")
-
-    prompt = "\n\n".join(conversation)
-
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_INSTRUCTION,
-            temperature=0.5,
-            max_output_tokens=800
-        )
-    )
-
-    if not response.text:
-        raise ValueError("Gemini returned an empty response.")
-
-    return response.text
+        return response.text or "I couldn't generate a response. Please try again."
+    except Exception as error:
+        return f"Gemini error: {error}"
 
 
-# ---------------- DATABASE MATCHING ----------------
+# ---------------- RECOMMENDATION DETECTION ----------------
 
 def find_database_mentions(ai_response):
+    found_components = []
 
-    """
-    Find component names from our database
-    that appear in Gemini's response.
-    """
+    response_lower = ai_response.lower()
 
-    components = get_all_components()
-
-    response_text = ai_response.lower()
-
-    matched_names = []
-
-    for component in components:
-
+    for component in all_components:
         component_name = component.get("name", "")
 
-        if (
-            component_name
-            and component_name.lower() in response_text
-        ):
-            matched_names.append(component_name)
+        if component_name and component_name.lower() in response_lower:
+            found_components.append(component_name)
 
-    return matched_names
+    return list(dict.fromkeys(found_components))
 
 
 def process_recommendations(ai_response):
+    mentioned_names = find_database_mentions(ai_response)
 
-    """
-    Match component names mentioned by Gemini
-    against our local component database.
-    """
-
-    matched_names = find_database_mentions(ai_response)
-
-    if not matched_names:
-        return None
-
-    result = get_recommendation_summary(matched_names)
-
-    return result["details"]
+    if mentioned_names:
+        st.session_state.recommendation_result = match_recommendations(
+            mentioned_names
+        )
 
 
-# ---------------- SIDEBAR ----------------
-
-with st.sidebar:
-
-    st.markdown("# ⚡ ElectroMind AI")
-
-    st.caption("Your Electronic Engineering Assistant")
-
-    st.divider()
-
-    st.markdown("### Navigation")
-
-    st.info("💬 Component Recommender")
-
-    st.markdown("### Capabilities")
-
-    st.write("• AI Project Analysis")
-    st.write("• Smart Component Selection")
-    st.write("• Alternative Components")
-    st.write("• Wiring Assistance")
-    st.write("• Budget Optimization")
-    st.write("• Technical Specifications")
-
-    st.divider()
-
-    st.markdown("### AI Engine")
-
-    st.success("Gemini AI Connected")
-
-    st.caption(f"Model: {MODEL_NAME}")
-
-    st.divider()
-
-    if st.button(
-        "🗑️ New Conversation",
-        use_container_width=True
-    ):
-
-        st.session_state.messages = []
-        st.session_state.project_started = False
-        st.session_state.api_error = ""
-        st.session_state.recommendation_result = None
-
-        st.rerun()
-
-    st.caption("ElectroMind AI | Version 1.2")
-
-
-# ---------------- MAIN HEADER ----------------
-
-st.markdown(
-    '<div class="main-title">⚡ ElectroMind AI</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">'
-    'AI-Powered Electronic Component Recommender'
-    '</div>',
-    unsafe_allow_html=True
-)
-
-st.divider()
-
-
-# ---------------- WELCOME SCREEN ----------------
-
-if not st.session_state.messages:
-
-    st.markdown("## Welcome, Engineer! 👋")
-
-    st.write(
-        "Tell me about your electronics project. "
-        "I'll understand your requirements, ask technical "
-        "questions and help you choose suitable components."
-    )
-
-    st.markdown("### What can I help you with?")
-
-    col1, col2, col3 = st.columns(3)
-
-    with col1:
-        st.info("🔧 Component Selection")
-
-    with col2:
-        st.info("⚡ Circuit & Wiring")
-
-    with col3:
-        st.info("💰 Budget Optimization")
-
-    st.markdown("### Start with your project idea")
-
-
-# ---------------- DISPLAY CHAT HISTORY ----------------
+# ---------------- CHAT HISTORY ----------------
 
 for message in st.session_state.messages:
-
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
 
 
 # ---------------- CHAT INPUT ----------------
 
-user_input = st.chat_input(
-    "Describe your electronics project..."
+user_message = st.chat_input(
+    "Describe your electronics project or ask a question..."
 )
 
-if user_input:
-
+if user_message:
     st.session_state.messages.append({
         "role": "user",
-        "content": user_input
+        "content": user_message
     })
 
-    st.session_state.project_started = True
-
     with st.chat_message("user"):
-        st.markdown(user_input)
+        st.markdown(user_message)
 
     with st.chat_message("assistant"):
+        with st.spinner("ElectroMind AI is thinking..."):
+            ai_response = generate_ai_response(user_message)
 
-        with st.spinner(
-            "ElectroMind AI is analysing your requirements..."
-        ):
+        st.markdown(ai_response)
 
-            try:
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": ai_response
+    })
 
-                response = generate_ai_response(
-                    st.session_state.messages[:-1],
-                    user_input
-                )
-
-                st.markdown(response)
-
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": response
-                })
-
-                # Match component names mentioned in the response.
-                recommendation_result = process_recommendations(
-                    response
-                )
-
-                if recommendation_result:
-                    st.session_state.recommendation_result = (
-                        recommendation_result
-                    )
-
-                st.session_state.api_error = ""
-
-            except Exception as error:
-
-                error_message = str(error)
-
-                st.error(
-                    "Sorry! I couldn't generate a response. "
-                    "Please check the details below."
-                )
-
-                if "API key is missing" in error_message:
-
-                    st.warning(
-                        "Please configure GEMINI_API_KEY "
-                        "in Streamlit Secrets."
-                    )
-
-                elif (
-                    "429" in error_message
-                    or "RESOURCE_EXHAUSTED" in error_message
-                ):
-
-                    st.warning(
-                        "Gemini API usage limit reached. "
-                        "Please check your API quota and try again later."
-                    )
-
-                elif (
-                    "403" in error_message
-                    or "PERMISSION_DENIED" in error_message
-                ):
-
-                    st.warning(
-                        "API access was denied. Check your API key "
-                        "and model access in Google AI Studio."
-                    )
-
-                else:
-
-                    st.caption(
-                        "Technical error: " + error_message[:500]
-                    )
-
-                st.session_state.messages.pop()
-
-                st.session_state.api_error = error_message
+    process_recommendations(ai_response)
 
 
-# ---------------- COMPONENT RECOMMENDATIONS ----------------
+# ---------------- RECOMMENDATION SECTION ----------------
 
 if st.session_state.recommendation_result:
-
     st.divider()
+    st.header("🔧 Component Recommendations")
 
     display_recommendations(
-        st.session_state.recommendation_result
+        st.session_state.recommendation_result,
+        all_components
     )
 
-    st.caption(
-        "Database matches indicate catalogue entries only. "
-        "They do not establish electrical compatibility or "
-        "confirm datasheet specifications."
-    )
 
 # ---------------- BILL OF MATERIALS ----------------
 
 st.divider()
+st.header("🧾 Smart Project Cost Estimator")
 
-st.header("🧾 Project Cost Estimator")
+if st.session_state.recommendation_result:
+    recommended_components = (
+        st.session_state.recommendation_result.get(
+            "verified_components", []
+        )
+    )
+else:
+    recommended_components = []
 
-all_components = get_all_components()
+calculate_bom(
+    all_components,
+    recommended_components
+)
 
-calculate_bom(all_components)
+
+# ---------------- FOOTER ----------------
+
+st.divider()
+st.caption(
+    "ElectroMind AI | Component prices are illustrative estimates. "
+    "Always verify datasheets, electrical ratings and wiring before building."
+)
