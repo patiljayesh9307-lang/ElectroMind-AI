@@ -1,4 +1,7 @@
-
+from modules.component_database import (
+    get_all_components,
+    search_components
+)
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -350,3 +353,18 @@ if user_input:
                 st.session_state.messages.pop()
 
                 st.session_state.api_error = error_message
+
+# Component Database Test
+st.sidebar.divider()
+st.sidebar.subheader("Database Test")
+
+components = get_all_components()
+st.sidebar.write(f"Total components: {len(components)}")
+
+search_query = st.sidebar.text_input("Search components")
+
+if search_query:
+    results = search_components(search_query)
+
+    for component in results:
+        st.sidebar.write(component["name"])
