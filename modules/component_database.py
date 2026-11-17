@@ -1,19 +1,17 @@
-
 import json
 from pathlib import Path
 
 
-def load_components():
-    """Load electronics components from the JSON database."""
+DATABASE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "data"
+    / "components.json"
+)
 
-    database_path = (
-        Path(__file__).resolve().parent.parent
-        / "data"
-        / "components.json"
-    )
 
+def get_all_components():
     try:
-        with open(database_path, "r", encoding="utf-8") as file:
+        with open(DATABASE_PATH, "r", encoding="utf-8") as file:
             data = json.load(file)
 
         return data.get("components", [])
@@ -25,42 +23,21 @@ def load_components():
         return []
 
 
-def get_all_components():
-    """Return all components."""
-
-    return load_components()
-
-
 def search_components(keyword):
-    """Search components by name, category, ID, or description."""
+    keyword = keyword.lower()
 
-    components = load_components()
-    keyword = keyword.strip().lower()
-
-    if not keyword:
-        return components
-
-    results = []
-
-    for component in components:
-        searchable_text = " ".join([
-            component.get("id", ""),
-            component.get("name", ""),
-            component.get("category", ""),
-            component.get("description", "")
-        ]).lower()
-
-        if keyword in searchable_text:
-            results.append(component)
-
-    return results
+    return [
+        component
+        for component in get_all_components()
+        if keyword in component.get("name", "").lower()
+        or keyword in component.get("category", "").lower()
+        or keyword in component.get("description", "").lower()
+    ]
 
 
 def get_component_by_id(component_id):
-    """Find a component using its unique ID."""
-
-    for component in load_components():
-        if component.get("id", "").lower() == component_id.lower():
+    for component in get_all_components():
+        if component.get("id") == component_id:
             return component
 
     return None
