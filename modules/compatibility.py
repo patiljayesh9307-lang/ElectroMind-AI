@@ -1,93 +1,64 @@
-
-def check_voltage_compatibility(
-    controller_voltage,
-    component_voltage
-):
-    """
-    Basic voltage-range comparison.
-    Returns a warning when voltage information is unknown.
-    """
+def check_voltage_compatibility(controller, component):
+    controller_voltage = str(controller.get("voltage", "")).lower()
+    component_voltage = str(component.get("voltage", "")).lower()
 
     if not controller_voltage or not component_voltage:
         return {
             "status": "unknown",
-            "message": "Voltage information is incomplete."
+            "message": "Voltage information is missing. Check both datasheets."
         }
 
     return {
         "status": "review_required",
         "message": (
-            "Voltage values need datasheet verification. "
-            "A matching voltage value alone does not prove compatibility."
+            f"Controller voltage information: {controller_voltage}. "
+            f"Component voltage information: {component_voltage}. "
+            "Verify supply voltage, logic levels and current requirements."
         )
     }
 
 
-def check_interface_compatibility(
-    controller_interfaces,
-    component_interfaces
-):
-    """
-    Check whether two components share a listed interface.
-    """
+def check_interface_compatibility(controller, component):
+    controller_interfaces = controller.get("interfaces", [])
+    component_interfaces = component.get("interfaces", [])
 
-    if not controller_interfaces or not component_interfaces:
-        return {
-            "status": "unknown",
-            "message": "Interface information is incomplete."
-        }
+    if isinstance(controller_interfaces, str):
+        controller_interfaces = [controller_interfaces]
 
-    common_interfaces = [
+    if isinstance(component_interfaces, str):
+        component_interfaces = [component_interfaces]
+
+    shared_interfaces = [
         interface
         for interface in controller_interfaces
         if interface in component_interfaces
     ]
 
-    if common_interfaces:
+    if shared_interfaces:
         return {
             "status": "possible_match",
-            "interfaces": common_interfaces,
-            "message": (
-                "A common interface was found. "
-                "Pin mapping and electrical levels still need checking."
-            )
+            "message": "Shared interface listed: " + ", ".join(shared_interfaces)
         }
 
     return {
         "status": "no_match",
-        "interfaces": [],
-        "message": "No common interface was found in the database."
+        "message": (
+            "No shared interface was found in the database. "
+            "Check whether an adapter or additional circuit is required."
+        )
     }
 
 
-def check_component_compatibility(
-    controller,
-    component
-):
-    """
-    Perform basic database-based compatibility screening.
-    This is not a substitute for datasheet verification.
-    """
-
-    voltage_result = check_voltage_compatibility(
-        controller.get("voltage"),
-        component.get("voltage")
-    )
-
-    interface_result = check_interface_compatibility(
-        controller.get("interfaces", []),
-        component.get("interfaces", [])
-    )
+def check_component_compatibility(controller, component):
+    voltage_result = check_voltage_compatibility(controller, component)
+    interface_result = check_interface_compatibility(controller, component)
 
     return {
-        "controller": controller.get("name", "Unknown"),
-        "component": component.get("name", "Unknown"),
-        "voltage_check": voltage_result,
-        "interface_check": interface_result,
-        "overall_status": "review_required",
-        "safety_note": (
-            "This is preliminary screening only. "
-            "Verify supply voltage, logic levels, current limits, "
-            "pin assignments and datasheets before connecting hardware."
+        "status": "review_required",
+        "voltage": voltage_result,
+        "interface": interface_result,
+        "message": (
+            "This is a preliminary database check, not an electrical "
+            "compatibility or safety certification."
         )
     }
