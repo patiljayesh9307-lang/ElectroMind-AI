@@ -1,4 +1,4 @@
-
+from modules.bom_calculator import calculate_bom
 import streamlit as st
 from google import genai
 from google.genai import types
@@ -455,3 +455,13 @@ if st.session_state.recommendation_result:
         "They do not establish electrical compatibility or "
         "confirm datasheet specifications."
     )
+
+# ---------------- BILL OF MATERIALS ----------------
+
+st.divider()
+
+st.header("🧾 Project Cost Estimator")
+
+all_components = get_all_components()
+
+calculate_bom(all_components)
