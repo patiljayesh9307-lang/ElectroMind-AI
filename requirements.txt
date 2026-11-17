@@ -1,6 +1,6 @@
 
 streamlit
-openai
+google-genai
 pandas
 plotly
 reportlab
