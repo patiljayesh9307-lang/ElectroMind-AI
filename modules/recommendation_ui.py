@@ -14,14 +14,36 @@ def display_recommendations(result):
 
     database = get_all_components()
 
-    # Find the recommended controller in the database.
-    controller = next(
-        (
-            component for component in database
-            if component.get("id") == "ESP32-DEVKIT"
-        ),
-        None
-    )
+    # Available controller boards
+    controllers = [
+        component for component in database
+        if component.get("id") in [
+            "ESP32-DEVKIT",
+            "ARDUINO-UNO",
+            "NODEMCU-ESP8266"
+        ]
+    ]
+
+    controller = None
+
+    if controllers:
+        controller_names = [
+            component["name"] for component in controllers
+        ]
+
+        selected_name = st.selectbox(
+            "Choose your controller board",
+            controller_names,
+            key="compatibility_controller"
+        )
+
+        controller = next(
+            (
+                component for component in controllers
+                if component["name"] == selected_name
+            ),
+            None
+        )
 
     if verified:
         st.markdown("### ✅ Components found in our database")
@@ -31,7 +53,6 @@ def display_recommendations(result):
             with st.container(border=True):
 
                 st.markdown(f"**{component['name']}**")
-
                 st.caption(
                     f"Category: {component.get('category', 'Unknown')}"
                 )
@@ -46,7 +67,6 @@ def display_recommendations(result):
 
                 st.write(component.get("description", ""))
 
-                # Preliminary compatibility screening.
                 if (
                     controller
                     and component.get("id") != controller.get("id")
@@ -66,12 +86,9 @@ def display_recommendations(result):
                         compatibility["voltage_check"]["message"]
                     )
 
-                    st.caption(
-                        compatibility["safety_note"]
-                    )
+                    st.caption(compatibility["safety_note"])
 
     if unverified:
-
         st.markdown("### ⚠️ Components not found in our database")
 
         for name in unverified:
