@@ -1,3 +1,5 @@
+from modules.recommender import get_recommendation_summary
+
 from modules.component_database import (
     get_all_components,
     search_components
@@ -368,3 +370,37 @@ if search_query:
 
     for component in results:
         st.sidebar.write(component["name"])
+
+
+# Recommendation Matching Test
+
+st.sidebar.divider()
+st.sidebar.subheader("Recommendation Test")
+
+test_names = [
+    "ESP32 Development Board",
+    "DHT22 Sensor",
+    "Arduino Uno",
+    "Unknown Component"
+]
+
+if st.sidebar.button("Test Recommendation Matching"):
+    result = get_recommendation_summary(test_names)
+
+    st.sidebar.write(
+        f"Verified: {result['total_verified']}"
+    )
+
+    st.sidebar.write(
+        f"Unverified: {result['total_unverified']}"
+    )
+
+    st.sidebar.write("Verified components:")
+
+    for component in result["details"]["verified_components"]:
+        st.sidebar.write("✅ " + component["name"])
+
+    st.sidebar.write("Unverified components:")
+
+    for name in result["details"]["unverified_components"]:
+        st.sidebar.write("⚠️ " + name)
