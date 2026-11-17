@@ -1,49 +1,42 @@
-
-from modules.component_database import get_all_components
-
-
 def match_recommendations(recommended_names):
-    """
-    Match Gemini's suggested component names
-    with components stored in our database.
-    """
+    from modules.component_database import get_all_components
 
-    database = get_all_components()
-    matched_components = []
+    all_components = get_all_components()
+
+    verified_components = []
     unverified_components = []
 
     for recommended_name in recommended_names:
-        search_name = recommended_name.strip().lower()
+        matched = None
 
-        if not search_name:
-            continue
+        for component in all_components:
+            if (
+                recommended_name.lower() == component.get("name", "").lower()
+                or recommended_name.lower() == component.get("id", "").lower()
+            ):
+                matched = component
+                break
 
-        matches = [
-            component
-            for component in database
-            if search_name == component.get("name", "").lower()
-            or search_name == component.get("id", "").lower()
-        ]
-
-        if matches:
-            matched_components.extend(matches)
+        if matched:
+            if matched not in verified_components:
+                verified_components.append(matched)
         else:
-            unverified_components.append(recommended_name)
+            if recommended_name not in unverified_components:
+                unverified_components.append(recommended_name)
 
     return {
-        "verified_components": matched_components,
+        "verified_components": verified_components,
         "unverified_components": unverified_components
     }
 
 
-def get_recommendation_summary(recommended_names):
-    """Create a simple summary of recommendation matching."""
-
-    results = match_recommendations(recommended_names)
+def get_recommendation_summary(result):
+    verified = result.get("verified_components", [])
+    unverified = result.get("unverified_components", [])
 
     return {
-        "total_requested": len(recommended_names),
-        "total_verified": len(results["verified_components"]),
-        "total_unverified": len(results["unverified_components"]),
-        "details": results
+        "verified_count": len(verified),
+        "unverified_count": len(unverified),
+        "verified_components": verified,
+        "unverified_components": unverified
     }
