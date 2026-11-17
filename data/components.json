@@ -7,7 +7,8 @@
       "category": "Microcontroller",
       "voltage": "3.3V logic, 5V USB input",
       "interfaces": ["Wi-Fi", "Bluetooth", "GPIO", "I2C", "SPI", "UART", "PWM"],
-      "description": "Wi-Fi and Bluetooth enabled microcontroller development board."
+      "description": "Powerful microcontroller with built-in Wi-Fi and Bluetooth for IoT projects.",
+      "price": 450
     },
     {
       "id": "ARDUINO-UNO",
@@ -15,7 +16,8 @@
       "category": "Microcontroller",
       "voltage": "5V logic",
       "interfaces": ["GPIO", "I2C", "SPI", "UART", "PWM"],
-      "description": "Beginner-friendly microcontroller board."
+      "description": "Beginner-friendly microcontroller board for electronics and automation projects.",
+      "price": 550
     },
     {
       "id": "NODEMCU-ESP8266",
@@ -23,23 +25,26 @@
       "category": "Microcontroller",
       "voltage": "3.3V logic",
       "interfaces": ["Wi-Fi", "GPIO", "I2C", "SPI", "UART", "PWM"],
-      "description": "Affordable Wi-Fi development board."
+      "description": "Wi-Fi-enabled development board for IoT applications.",
+      "price": 250
     },
     {
       "id": "DHT11",
       "name": "DHT11 Sensor",
       "category": "Sensor",
-      "voltage": "3.3V–5V",
+      "voltage": "3.3V-5V",
       "interfaces": ["Digital"],
-      "description": "Basic temperature and humidity sensor."
+      "description": "Basic temperature and humidity sensor.",
+      "price": 80
     },
     {
       "id": "DHT22",
       "name": "DHT22 Sensor",
       "category": "Sensor",
-      "voltage": "3.3V–5.5V",
+      "voltage": "3.3V-5.5V",
       "interfaces": ["Digital"],
-      "description": "Temperature and humidity sensor with better accuracy than DHT11."
+      "description": "Digital temperature and humidity sensor with better accuracy than DHT11.",
+      "price": 180
     },
     {
       "id": "HC-SR04",
@@ -47,31 +52,35 @@
       "category": "Sensor",
       "voltage": "5V",
       "interfaces": ["Digital"],
-      "description": "Measures distance using ultrasonic waves."
+      "description": "Ultrasonic distance measurement sensor.",
+      "price": 90
     },
     {
       "id": "PIR-HC-SR501",
-      "name": "PIR Motion Sensor",
+      "name": "PIR HC-SR501",
       "category": "Sensor",
       "voltage": "5V",
       "interfaces": ["Digital"],
-      "description": "Detects movement using infrared radiation."
+      "description": "Motion detection sensor for security and automation projects.",
+      "price": 100
     },
     {
       "id": "LDR",
-      "name": "LDR Light Sensor",
+      "name": "LDR Sensor",
       "category": "Sensor",
       "voltage": "Depends on circuit",
       "interfaces": ["Analog"],
-      "description": "Detects light intensity using a photoresistor."
+      "description": "Light-dependent resistor used to detect light intensity.",
+      "price": 10
     },
     {
-      "id": "MQ2",
+      "id": "MQ-2",
       "name": "MQ-2 Gas Sensor",
       "category": "Sensor",
       "voltage": "5V heater supply",
       "interfaces": ["Analog", "Digital"],
-      "description": "Detects combustible gases and smoke; requires calibration."
+      "description": "Gas and smoke detection sensor module.",
+      "price": 120
     },
     {
       "id": "RELAY-1CH",
@@ -79,7 +88,8 @@
       "category": "Actuator",
       "voltage": "Module-dependent",
       "interfaces": ["Digital"],
-      "description": "Controls an external load using a relay. Verify trigger voltage and contact ratings."
+      "description": "Single-channel relay module for switching external loads.",
+      "price": 60
     },
     {
       "id": "RELAY-4CH",
@@ -87,7 +97,8 @@
       "category": "Actuator",
       "voltage": "Module-dependent",
       "interfaces": ["Digital"],
-      "description": "Controls up to four separate loads. Verify trigger voltage and contact ratings."
+      "description": "Four-channel relay module for controlling multiple loads.",
+      "price": 180
     },
     {
       "id": "RELAY-8CH",
@@ -95,15 +106,17 @@
       "category": "Actuator",
       "voltage": "Module-dependent",
       "interfaces": ["Digital"],
-      "description": "Controls up to eight separate loads. Verify trigger voltage and contact ratings."
+      "description": "Eight-channel relay module for multi-device automation.",
+      "price": 300
     },
     {
       "id": "SG90",
       "name": "SG90 Servo Motor",
       "category": "Actuator",
-      "voltage": "Typically 4.8V–6V",
+      "voltage": "Typically 4.8V-6V",
       "interfaces": ["PWM"],
-      "description": "Small servo motor for position control."
+      "description": "Small servo motor for angular position control.",
+      "price": 120
     },
     {
       "id": "L298N",
@@ -111,47 +124,53 @@
       "category": "Motor Driver",
       "voltage": "Module-dependent",
       "interfaces": ["GPIO", "PWM"],
-      "description": "Dual H-bridge motor driver for controlling DC motors."
+      "description": "Dual H-bridge motor driver for controlling DC motors.",
+      "price": 150
     },
     {
-      "id": "OLED-SSD1306",
-      "name": "0.96-inch OLED Display",
+      "id": "OLED-096",
+      "name": "0.96-inch OLED SSD1306",
       "category": "Display",
       "voltage": "Module-dependent",
       "interfaces": ["I2C"],
-      "description": "Small OLED display commonly used with microcontrollers."
+      "description": "Compact OLED display for showing sensor readings and text.",
+      "price": 180
     },
     {
-      "id": "LCD-1602",
+      "id": "LCD-16X2",
       "name": "16x2 LCD Display",
       "category": "Display",
       "voltage": "Typically 5V",
       "interfaces": ["Parallel", "I2C"],
-      "description": "Character display for showing text and sensor readings."
+      "description": "Character LCD for displaying text and measurements.",
+      "price": 120
     },
     {
-      "id": "BUZZER",
+      "id": "BUZZER-ACTIVE",
       "name": "Active Buzzer",
       "category": "Output",
       "voltage": "Module-dependent",
       "interfaces": ["Digital"],
-      "description": "Produces an audible alert when activated."
+      "description": "Electronic buzzer for sound alerts and notifications.",
+      "price": 20
     },
     {
-      "id": "NEO6M",
+      "id": "NEO-6M",
       "name": "NEO-6M GPS Module",
       "category": "Communication",
       "voltage": "Module-dependent",
       "interfaces": ["UART"],
-      "description": "GPS receiver for location and positioning projects."
+      "description": "GPS module for location tracking and navigation projects.",
+      "price": 450
     },
     {
-      "id": "HC05",
+      "id": "HC-05",
       "name": "HC-05 Bluetooth Module",
       "category": "Communication",
       "voltage": "Module-dependent",
       "interfaces": ["UART", "Bluetooth"],
-      "description": "Bluetooth serial communication module."
+      "description": "Bluetooth serial communication module.",
+      "price": 250
     },
     {
       "id": "INA219",
@@ -159,7 +178,8 @@
       "category": "Sensor",
       "voltage": "Module-dependent",
       "interfaces": ["I2C"],
-      "description": "Measures bus voltage and current using a shunt resistor."
+      "description": "Current and voltage monitoring sensor module.",
+      "price": 180
     }
   ]
 }
