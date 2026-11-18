@@ -993,4 +993,4 @@ with st.sidebar:
 
         st.session_state.api_error = ""
 
-        st.rerun(
+        st.rerun() 
