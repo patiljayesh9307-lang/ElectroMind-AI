@@ -923,7 +923,7 @@ def generate_pdf(content):
 
             table.setStyle(
 
-                TableStyle([
+                TableStyle([]
 
                     (
                         "BACKGROUND",
