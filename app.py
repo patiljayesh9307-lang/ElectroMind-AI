@@ -985,4 +985,4 @@ def generate_pdf(content):
                         7
                     ),
 
-                    (
+                    () 
