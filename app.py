@@ -37,7 +37,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-MODEL_NAME = "gemini-3.8-flash"
+MODEL_NAME = "gemini-3.5-flash-lite"
 
 
 # ---------------- SESSION STATE ----------------
