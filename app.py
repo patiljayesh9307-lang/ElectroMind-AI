@@ -36,7 +36,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+MODEL_NAME = st.secrets.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 
 
 # ---------------- SESSION STATE ----------------
