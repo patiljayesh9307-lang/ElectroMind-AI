@@ -22,7 +22,7 @@ from reportlab.platypus import (
 
 
 # =========================================================
-# ELECTROMIND AI VERSION 1.3
+# ELECTROMIND AI VERSION 1.4
 # Gemini Powered Electronics Component Recommender
 # =========================================================
 
@@ -33,9 +33,8 @@ st.set_page_config(
     page_title="ElectroMind AI",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
-
 
 MODEL_NAME = "gemini-3.5-flash-lite"
 
@@ -50,7 +49,6 @@ defaults = {
 }
 
 for key, value in defaults.items():
-
     if key not in st.session_state:
         st.session_state[key] = value
 
@@ -126,7 +124,7 @@ Include a total estimated project cost.
 
 ## WIRING AND SAFETY PLAN
 
-Explain the connections using a simple table.
+Explain connections using a simple table.
 
 Include:
 - Component
@@ -177,50 +175,114 @@ in electronic hardware projects.
 st.markdown("""
 <style>
 
+/* Main background */
+
 .stApp {
-    background-color: #0b1120;
-    color: #ffffff;
+    background: #0b1120;
+    color: #f1f5f9;
 }
 
+/* Main content width */
+
+.block-container {
+    max-width: 1150px;
+    padding-top: 1.5rem;
+    padding-bottom: 5rem;
+}
+
+/* Main title */
+
 .main-title {
-    font-size: 36px;
+    font-size: 34px;
     font-weight: 800;
     color: #38bdf8;
+    letter-spacing: -1px;
 }
 
 .subtitle {
     color: #94a3b8;
-    font-size: 15px;
+    font-size: 14px;
+    margin-top: 4px;
 }
 
+/* Chat messages */
+
 div[data-testid="stChatMessage"] {
+    background: #111c30;
     border: 1px solid #263449;
-    border-radius: 12px;
-    padding: 12px;
+    border-radius: 14px;
+    padding: 15px;
+    margin-bottom: 12px;
 }
+
+/* Chat input */
+
+div[data-testid="stChatInput"] {
+    border: 1px solid #334155;
+    border-radius: 14px;
+}
+
+/* Buttons */
 
 .stButton button {
     border-radius: 10px;
     min-height: 42px;
+    font-weight: 600;
 }
+
+/* Download button */
 
 div[data-testid="stDownloadButton"] button {
     border-radius: 10px;
     min-height: 45px;
+    background: #0284c7;
+    color: white;
+    border: none;
 }
+
+/* Sidebar */
+
+section[data-testid="stSidebar"] {
+    background: #101a2c;
+    border-right: 1px solid #263449;
+}
+
+/* Expander */
 
 div[data-testid="stExpander"] {
     border: 1px solid #263449;
+    border-radius: 12px;
+}
+
+/* Info cards */
+
+div[data-testid="stAlert"] {
     border-radius: 10px;
 }
 
+/* Mobile adjustments */
+
 @media (max-width: 640px) {
+
+    .block-container {
+        padding-left: 0.8rem;
+        padding-right: 0.8rem;
+        padding-top: 1rem;
+    }
 
     .main-title {
         font-size: 27px;
     }
 
     .subtitle {
+        font-size: 12px;
+    }
+
+    div[data-testid="stChatMessage"] {
+        padding: 10px;
+    }
+
+    .stButton button {
         font-size: 13px;
     }
 
@@ -242,7 +304,7 @@ def get_gemini_client():
     except Exception:
         raise ValueError(
             "Gemini API key is missing. "
-            "Please configure GEMINI_API_KEY in Streamlit Secrets."
+            "Configure GEMINI_API_KEY in Streamlit Secrets."
         )
 
     if not api_key:
@@ -291,12 +353,11 @@ def generate_ai_response(history, user_input):
 
             temperature=0.4,
 
-            max_output_tokens=1800
+            max_output_tokens=2500
         )
     )
 
     if not response.text:
-
         raise ValueError(
             "Gemini returned an empty response."
         )
@@ -311,11 +372,8 @@ def generate_ai_response(history, user_input):
 def process_message(user_input):
 
     st.session_state.messages.append({
-
         "role": "user",
-
         "content": user_input
-
     })
 
     st.session_state.project_started = True
@@ -334,23 +392,18 @@ def process_message(user_input):
             )
 
         st.session_state.messages.append({
-
             "role": "assistant",
-
             "content": response
-
         })
 
-        # Preserve the latest component recommendation
-        # when the user subsequently uses other tools.
+        # Save the final recommendation for PDF generation.
 
         lower_response = response.lower()
 
-        has_recommendations = (
+        if (
             "component recommendations" in lower_response
-        )
-
-        if has_recommendations:
+            and "bill of materials" in lower_response
+        ):
 
             st.session_state.report_content = response
 
@@ -359,6 +412,9 @@ def process_message(user_input):
         return True
 
     except Exception as error:
+
+        # Remove the failed user message so it is not
+        # accidentally sent again as conversation history.
 
         st.session_state.messages.pop()
 
@@ -388,7 +444,7 @@ def process_message(user_input):
 
             st.session_state.api_error = (
                 "Unable to generate response: "
-                + error_message[:300]
+                + error_message[:400]
             )
 
         return False
@@ -425,70 +481,91 @@ def clean_pdf_text(text):
         text
     )
 
-    # Standard PDF fonts may not support the rupee symbol.
     text = text.replace("₹", "INR ")
 
     return text.strip()
 
 
+# =========================================================
+# EXTRACT COMPONENT AND BOM SECTIONS
+# =========================================================
+
 def extract_pdf_sections(content):
 
-    component_match = re.search(
-        r"##\s*COMPONENT RECOMMENDATIONS\s*(.*?)"
-        r"(?=##\s*BILL OF MATERIALS|##\s*WIRING|$)",
-        content,
-        re.I | re.S
-    )
+    lines = content.splitlines()
 
-    bom_match = re.search(
-        r"##\s*BILL OF MATERIALS\s*\(BOM\)\s*(.*?)"
-        r"(?=##\s*WIRING|##\s*SAFETY|$)",
-        content,
-        re.I | re.S
-    )
+    component_start = None
+    bom_start = None
+    wiring_start = None
 
-    # Fallback for older recommendation responses.
-    if not component_match:
+    for index, line in enumerate(lines):
 
-        component_match = re.search(
-            r"Component Recommendations\s*(.*?)"
-            r"(?=Bill of Materials|BOM|Wiring|Safety Plan|$)",
-            content,
-            re.I | re.S
+        normalized = re.sub(
+            r"[*#_\s]",
+            "",
+            line
+        ).upper()
+
+        if (
+            "COMPONENTRECOMMENDATIONS" in normalized
+            and component_start is None
+        ):
+
+            component_start = index
+
+        elif (
+            "BILLOFMATERIALS" in normalized
+            and bom_start is None
+        ):
+
+            bom_start = index
+
+        elif (
+            "WIRINGANDSAFETYPLAN" in normalized
+            and wiring_start is None
+        ):
+
+            wiring_start = index
+
+    component_text = ""
+    bom_text = ""
+
+    if component_start is not None:
+
+        end = (
+            bom_start
+            if bom_start is not None
+            else wiring_start
+            if wiring_start is not None
+            else len(lines)
         )
 
-    if not bom_match:
+        component_text = "\n".join(
+            lines[component_start + 1:end]
+        ).strip()
 
-        bom_match = re.search(
-            r"Bill of Materials\s*\(BOM\)(.*?)"
-            r"(?=Wiring|Safety Plan|Next Steps|$)",
-            content,
-            re.I | re.S
+    if bom_start is not None:
+
+        end = (
+            wiring_start
+            if wiring_start is not None
+            else len(lines)
         )
 
-    component_text = (
-        component_match.group(1).strip()
-        if component_match
-        else ""
-    )
-
-    bom_text = (
-        bom_match.group(1).strip()
-        if bom_match
-        else ""
-    )
+        bom_text = "\n".join(
+            lines[bom_start + 1:end]
+        ).strip()
 
     return component_text, bom_text
 
 
 # =========================================================
-# PROFESSIONAL PDF GENERATOR
+# PDF GENERATOR
 # =========================================================
 
 def generate_pdf(content):
 
     if not content:
-
         raise ValueError(
             "No component recommendations available."
         )
@@ -498,11 +575,19 @@ def generate_pdf(content):
     if not component_text and not bom_text:
 
         raise ValueError(
-            "Recommendation sections were not detected. "
-            "Generate the final component recommendations first."
+            "Could not find the component recommendation "
+            "and BOM sections. Generate the final recommendations "
+            "first."
         )
 
     buffer = BytesIO()
+
+    page_width, page_height = A4
+
+    left_margin = 17 * mm
+    right_margin = 17 * mm
+
+    usable_width = page_width - left_margin - right_margin
 
     document = SimpleDocTemplate(
 
@@ -510,13 +595,13 @@ def generate_pdf(content):
 
         pagesize=A4,
 
-        rightMargin=18 * mm,
+        rightMargin=right_margin,
 
-        leftMargin=18 * mm,
+        leftMargin=left_margin,
 
         topMargin=16 * mm,
 
-        bottomMargin=16 * mm
+        bottomMargin=17 * mm
     )
 
     styles = getSampleStyleSheet()
@@ -527,11 +612,13 @@ def generate_pdf(content):
 
         parent=styles["Title"],
 
-        fontSize=21,
+        fontSize=22,
 
-        leading=26,
+        leading=27,
 
-        textColor=colors.HexColor("#0284C7"),
+        textColor=colors.HexColor("#0369A1"),
+
+        alignment=0,
 
         spaceAfter=5
     )
@@ -544,9 +631,11 @@ def generate_pdf(content):
 
         fontSize=10,
 
+        leading=14,
+
         textColor=colors.HexColor("#64748B"),
 
-        spaceAfter=5
+        spaceAfter=4
     )
 
     heading_style = ParagraphStyle(
@@ -561,7 +650,7 @@ def generate_pdf(content):
 
         textColor=colors.HexColor("#0369A1"),
 
-        spaceBefore=14,
+        spaceBefore=13,
 
         spaceAfter=8
     )
@@ -572,11 +661,13 @@ def generate_pdf(content):
 
         parent=styles["BodyText"],
 
-        fontSize=9,
+        fontSize=8.7,
 
-        leading=13,
+        leading=12.5,
 
-        spaceAfter=4
+        textColor=colors.HexColor("#334155"),
+
+        spaceAfter=3
     )
 
     component_style = ParagraphStyle(
@@ -585,15 +676,15 @@ def generate_pdf(content):
 
         parent=body_style,
 
-        fontSize=10,
+        fontSize=9.5,
 
-        leading=14,
+        leading=13,
 
         textColor=colors.HexColor("#0F172A"),
 
         spaceBefore=7,
 
-        spaceAfter=4
+        spaceAfter=3
     )
 
     small_style = ParagraphStyle(
@@ -602,14 +693,29 @@ def generate_pdf(content):
 
         parent=styles["BodyText"],
 
+        fontSize=7.8,
+
+        leading=10.5,
+
+        textColor=colors.HexColor("#334155")
+    )
+
+    header_style = ParagraphStyle(
+
+        "TableHeader",
+
+        parent=small_style,
+
         fontSize=8,
 
-        leading=11
+        leading=10,
+
+        textColor=colors.white
     )
 
     story = []
 
-    # REPORT HEADER
+    # ---------------- HEADER ----------------
 
     story.append(
         Paragraph(
@@ -633,9 +739,11 @@ def generate_pdf(content):
         )
     )
 
-    story.append(Spacer(1, 12))
+    story.append(
+        Spacer(1, 10)
+    )
 
-    # COMPONENT RECOMMENDATIONS
+    # ---------------- COMPONENTS ----------------
 
     if component_text:
 
@@ -650,16 +758,21 @@ def generate_pdf(content):
 
         for line in lines:
 
-            line = clean_pdf_text(line)
+            line = line.strip()
 
             if not line:
                 continue
+
+            line = clean_pdf_text(line)
 
             line = re.sub(
                 r"^\s*[-*•]+\s*",
                 "",
                 line
             )
+
+            if not line:
+                continue
 
             if line.startswith("|"):
                 continue
@@ -678,7 +791,7 @@ def generate_pdf(content):
                 story.append(
                     KeepTogether([
 
-                        Spacer(1, 5),
+                        Spacer(1, 4),
 
                         Paragraph(
                             "<b>" + escape(line) + "</b>",
@@ -692,12 +805,12 @@ def generate_pdf(content):
 
                 story.append(
                     Paragraph(
-                        "• " + escape(line),
+                        "&#8226; " + escape(line),
                         body_style
                     )
                 )
 
-    # BILL OF MATERIALS
+    # ---------------- BILL OF MATERIALS ----------------
 
     if bom_text:
 
@@ -709,32 +822,31 @@ def generate_pdf(content):
         )
 
         table_data = []
+        extra_bom_lines = []
 
         for line in bom_text.splitlines():
 
             line = line.strip()
 
-            if not line.startswith("|"):
-                continue
+            if line.startswith("|"):
 
-            cells = [
+                cells = [
+                    cell.strip()
+                    for cell in line.strip("|").split("|")
+                ]
 
-                cell.strip()
+                if all(
+                    re.fullmatch(r"[-:\s]+", cell or "-")
+                    for cell in cells
+                ):
+                    continue
 
-                for cell in line.strip("|").split("|")
+                if cells:
+                    table_data.append(cells)
 
-            ]
+            elif line:
 
-            # Ignore Markdown separator rows.
-
-            if all(
-                re.fullmatch(r"[-:\s]+", cell or "-")
-                for cell in cells
-            ):
-                continue
-
-            if cells:
-                table_data.append(cells)
+                extra_bom_lines.append(line)
 
         if table_data:
 
@@ -743,32 +855,31 @@ def generate_pdf(content):
                 for row in table_data
             )
 
+            # Four-column BOM table.
+
             if column_count == 4:
 
-                widths = [
-                    125,
-                    45,
-                    180,
-                    105
-                ]
-
-            elif column_count == 3:
-
-                widths = [
-                    180,
-                    65,
-                    210
+                proportions = [
+                    0.30,
+                    0.10,
+                    0.38,
+                    0.22
                 ]
 
             else:
 
-                widths = [
-                    515 / column_count
+                proportions = [
+                    1 / column_count
                 ] * column_count
+
+            widths = [
+                usable_width * proportion
+                for proportion in proportions
+            ]
 
             formatted_data = []
 
-            for row in table_data:
+            for row_index, row in enumerate(table_data):
 
                 row = row + (
                     [""] * (column_count - len(row))
@@ -778,13 +889,21 @@ def generate_pdf(content):
 
                 for cell in row:
 
+                    cell_text = escape(
+                        clean_pdf_text(cell)
+                    )
+
+                    style = (
+                        header_style
+                        if row_index == 0
+                        else small_style
+                    )
+
                     formatted_row.append(
-
                         Paragraph(
-                            escape(clean_pdf_text(cell)),
-                            small_style
+                            cell_text,
+                            style
                         )
-
                     )
 
                 formatted_data.append(formatted_row)
@@ -797,8 +916,9 @@ def generate_pdf(content):
 
                 repeatRows=1,
 
-                hAlign="LEFT"
+                hAlign="LEFT",
 
+                splitByRow=1
             )
 
             table.setStyle(
@@ -820,17 +940,10 @@ def generate_pdf(content):
                     ),
 
                     (
-                        "FONTNAME",
-                        (0, 0),
-                        (-1, 0),
-                        "Helvetica-Bold"
-                    ),
-
-                    (
                         "GRID",
                         (0, 0),
                         (-1, -1),
-                        0.5,
+                        0.45,
                         colors.HexColor("#CBD5E1")
                     ),
 
@@ -873,124 +986,3 @@ def generate_pdf(content):
                     ),
 
                     (
-                        "BOTTOMPADDING",
-                        (0, 0),
-                        (-1, -1),
-                        7
-                    )
-
-                ])
-
-            )
-
-            story.append(table)
-
-        else:
-
-            story.append(
-                Paragraph(
-                    escape(clean_pdf_text(bom_text)),
-                    body_style
-                )
-            )
-
-    # FOOTER
-
-    story.append(Spacer(1, 18))
-
-    story.append(
-        Paragraph(
-            "<b>Technical Disclaimer:</b> "
-            "Verify component specifications, electrical "
-            "compatibility, current requirements and manufacturer "
-            "datasheets before implementation.",
-            small_style
-        )
-    )
-
-    story.append(Spacer(1, 8))
-
-    story.append(
-        Paragraph(
-            "Generated by ElectroMind AI",
-            small_style
-        )
-    )
-
-    document.build(story)
-
-    buffer.seek(0)
-
-    return buffer.getvalue()
-
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-
-    st.markdown("# ⚡ ElectroMind AI")
-
-    st.caption(
-        "Your Electronic Engineering Assistant"
-    )
-
-    st.divider()
-
-    st.markdown("### Navigation")
-
-    st.info("💬 Component Recommender")
-
-    st.markdown("### Capabilities")
-
-    st.write("• AI Project Analysis")
-
-    st.write("• Smart Component Selection")
-
-    st.write("• Alternative Components")
-
-    st.write("• Wiring Assistance")
-
-    st.write("• Budget Optimization")
-
-    st.write("• Technical Specifications")
-
-    st.write("• BOM Generation")
-
-    st.write("• PDF Project Reports")
-
-    st.divider()
-
-    st.markdown("### AI Engine")
-
-    try:
-
-        get_gemini_client()
-
-        st.success("Gemini AI Connected")
-
-    except Exception:
-
-        st.error("Gemini AI Not Connected")
-
-    st.caption(
-        f"Model: {MODEL_NAME}"
-    )
-
-    st.divider()
-
-    if st.button(
-        "🗑️ New Conversation",
-        use_container_width=True
-    ):
-
-        st.session_state.messages = []
-
-        st.session_state.report_content = ""
-
-        st.session_state.project_started = False
-
-        st.session_state.api_error = ""
-
-        st.rerun() 
