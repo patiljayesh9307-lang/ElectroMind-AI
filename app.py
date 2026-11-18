@@ -1,11 +1,11 @@
-import streamlit as st
-from google import genai
-from google.genai import types
-
+import re
 from io import BytesIO
 from datetime import datetime
 from xml.sax.saxutils import escape
-import re
+
+import streamlit as st
+from google import genai
+from google.genai import types
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -17,17 +17,13 @@ from reportlab.platypus import (
     Spacer,
     Table,
     TableStyle,
-    KeepTogether
+    KeepTogether,
 )
 
 
 # =========================================================
-# ELECTROMIND AI VERSION 1.4
-# Gemini Powered Electronics Component Recommender
+# ELECTROMIND AI VERSION 1.5
 # =========================================================
-
-
-# ---------------- PAGE CONFIGURATION ----------------
 
 st.set_page_config(
     page_title="ElectroMind AI",
@@ -39,7 +35,9 @@ st.set_page_config(
 MODEL_NAME = "gemini-3.5-flash-lite"
 
 
-# ---------------- SESSION STATE ----------------
+# =========================================================
+# SESSION STATE
+# =========================================================
 
 defaults = {
     "messages": [],
@@ -53,7 +51,9 @@ for key, value in defaults.items():
         st.session_state[key] = value
 
 
-# ---------------- GEMINI INSTRUCTIONS ----------------
+# =========================================================
+# GEMINI SYSTEM INSTRUCTION
+# =========================================================
 
 SYSTEM_INSTRUCTION = """
 You are ElectroMind AI, an expert electronics engineering assistant.
@@ -90,18 +90,16 @@ CONVERSATION RULES:
    - Size requirements
 6. Skip irrelevant questions.
 7. Do not force a fixed number of questions.
-8. When sufficient information is collected, summarize
-   requirements and ask the user to confirm.
+8. When sufficient information is collected,
+   summarize requirements and ask for confirmation.
 
 FINAL COMPONENT RECOMMENDATIONS:
 
-After the user confirms their requirements, use these
-exact section headings:
+After the user confirms requirements, use these exact headings:
 
 ## COMPONENT RECOMMENDATIONS
 
 For every component include:
-
 - Component name
 - Category
 - Why it was selected
@@ -116,11 +114,11 @@ Keep descriptions concise.
 
 ## BILL OF MATERIALS (BOM)
 
-Use a Markdown table with these columns:
+Use a Markdown table:
 
 | Component Name | Quantity | Purpose | Estimated Price (INR) |
 
-Include a total estimated project cost.
+Include total estimated project cost.
 
 ## WIRING AND SAFETY PLAN
 
@@ -132,7 +130,7 @@ Include:
 - Controller/power pin
 - Notes
 
-Clearly distinguish signal connections and power connections.
+Clearly distinguish signal and power connections.
 
 TECHNICAL ACCURACY:
 
@@ -145,7 +143,7 @@ TECHNICAL ACCURACY:
 - Mention suitable motor drivers or power supplies.
 - Check sensor output compatibility with controller logic.
 - Do not claim compatibility without sufficient information.
-- Mention when a datasheet must be checked.
+- Mention when datasheet verification is required.
 
 SAFETY:
 
@@ -165,38 +163,35 @@ COMMUNICATION:
 
 UNRELATED QUESTIONS:
 
-Politely explain that ElectroMind AI currently specializes
+Politely explain that ElectroMind AI specializes
 in electronic hardware projects.
 """
 
 
-# ---------------- CUSTOM CSS ----------------
+# =========================================================
+# CUSTOM CSS
+# =========================================================
 
 st.markdown("""
 <style>
-
-/* Main background */
 
 .stApp {
     background: #0b1120;
     color: #f1f5f9;
 }
 
-/* Main content width */
-
 .block-container {
     max-width: 1150px;
-    padding-top: 1.5rem;
-    padding-bottom: 5rem;
+    padding-top: 1.4rem;
+    padding-bottom: 5.5rem;
 }
 
-/* Main title */
-
 .main-title {
+    color: #38bdf8;
     font-size: 34px;
     font-weight: 800;
-    color: #38bdf8;
     letter-spacing: -1px;
+    margin-bottom: 0;
 }
 
 .subtitle {
@@ -205,69 +200,49 @@ st.markdown("""
     margin-top: 4px;
 }
 
-/* Chat messages */
-
 div[data-testid="stChatMessage"] {
     background: #111c30;
     border: 1px solid #263449;
     border-radius: 14px;
-    padding: 15px;
+    padding: 12px 15px;
     margin-bottom: 12px;
 }
-
-/* Chat input */
 
 div[data-testid="stChatInput"] {
     border: 1px solid #334155;
     border-radius: 14px;
 }
 
-/* Buttons */
-
-.stButton button {
+.stButton button,
+div[data-testid="stDownloadButton"] button {
     border-radius: 10px;
     min-height: 42px;
     font-weight: 600;
 }
 
-/* Download button */
-
 div[data-testid="stDownloadButton"] button {
-    border-radius: 10px;
-    min-height: 45px;
     background: #0284c7;
     color: white;
     border: none;
+    min-height: 46px;
 }
-
-/* Sidebar */
 
 section[data-testid="stSidebar"] {
     background: #101a2c;
     border-right: 1px solid #263449;
 }
 
-/* Expander */
-
 div[data-testid="stExpander"] {
     border: 1px solid #263449;
     border-radius: 12px;
 }
-
-/* Info cards */
-
-div[data-testid="stAlert"] {
-    border-radius: 10px;
-}
-
-/* Mobile adjustments */
 
 @media (max-width: 640px) {
 
     .block-container {
         padding-left: 0.8rem;
         padding-right: 0.8rem;
-        padding-top: 1rem;
+        padding-top: 0.9rem;
     }
 
     .main-title {
@@ -279,11 +254,11 @@ div[data-testid="stAlert"] {
     }
 
     div[data-testid="stChatMessage"] {
-        padding: 10px;
+        padding: 9px;
     }
 
     .stButton button {
-        font-size: 13px;
+        font-size: 12px;
     }
 
 }
@@ -301,14 +276,15 @@ def get_gemini_client():
     try:
         api_key = st.secrets["GEMINI_API_KEY"]
 
-    except Exception:
+    except Exception as exc:
+
         raise ValueError(
             "Gemini API key is missing. "
-            "Configure GEMINI_API_KEY in Streamlit Secrets."
-        )
+            "Add GEMINI_API_KEY to Streamlit Secrets."
+        ) from exc
 
-    if not api_key:
-        raise ValueError("Gemini API key is empty.")
+    if not api_key or not str(api_key).strip():
+        raise ValueError("GEMINI_API_KEY is empty.")
 
     return genai.Client(api_key=api_key)
 
@@ -358,11 +334,12 @@ def generate_ai_response(history, user_input):
     )
 
     if not response.text:
+
         raise ValueError(
             "Gemini returned an empty response."
         )
 
-    return response.text
+    return response.text.strip()
 
 
 # =========================================================
@@ -371,23 +348,31 @@ def generate_ai_response(history, user_input):
 
 def process_message(user_input):
 
+    user_input = user_input.strip()
+
+    if not user_input:
+        return False
+
+    previous_history = list(
+        st.session_state.messages
+    )
+
     st.session_state.messages.append({
         "role": "user",
         "content": user_input
     })
 
     st.session_state.project_started = True
+    st.session_state.api_error = ""
 
     try:
-
-        history = st.session_state.messages[:-1]
 
         with st.spinner(
             "⚡ ElectroMind AI is analysing your project..."
         ):
 
             response = generate_ai_response(
-                history,
+                previous_history,
                 user_input
             )
 
@@ -395,8 +380,6 @@ def process_message(user_input):
             "role": "assistant",
             "content": response
         })
-
-        # Save the final recommendation for PDF generation.
 
         lower_response = response.lower()
 
@@ -407,16 +390,9 @@ def process_message(user_input):
 
             st.session_state.report_content = response
 
-        st.session_state.api_error = ""
-
         return True
 
     except Exception as error:
-
-        # Remove the failed user message so it is not
-        # accidentally sent again as conversation history.
-
-        st.session_state.messages.pop()
 
         error_message = str(error)
 
@@ -426,8 +402,8 @@ def process_message(user_input):
         ):
 
             st.session_state.api_error = (
-                "Gemini API usage limit reached. "
-                "Please check your API quota."
+                "Gemini API quota/rate limit reached. "
+                "Check your API usage and try again later."
             )
 
         elif (
@@ -437,14 +413,14 @@ def process_message(user_input):
 
             st.session_state.api_error = (
                 "API access denied. Check your API key "
-                "and model access."
+                "and whether the selected model is available."
             )
 
         else:
 
             st.session_state.api_error = (
-                "Unable to generate response: "
-                + error_message[:400]
+                "Unable to generate a response: "
+                + error_message[:500]
             )
 
         return False
@@ -470,7 +446,7 @@ def clean_pdf_text(text):
     )
 
     text = re.sub(
-        r"\*(.*?)\*",
+        r"__(.*?)__",
         r"\1",
         text
     )
@@ -486,8 +462,17 @@ def clean_pdf_text(text):
     return text.strip()
 
 
+def normalize_heading(line):
+
+    return re.sub(
+        r"[^A-Z]",
+        "",
+        line.upper()
+    )
+
+
 # =========================================================
-# EXTRACT COMPONENT AND BOM SECTIONS
+# EXTRACT PDF SECTIONS
 # =========================================================
 
 def extract_pdf_sections(content):
@@ -500,29 +485,28 @@ def extract_pdf_sections(content):
 
     for index, line in enumerate(lines):
 
-        normalized = re.sub(
-            r"[*#_\s]",
-            "",
-            line
-        ).upper()
+        normalized = normalize_heading(line)
 
         if (
-            "COMPONENTRECOMMENDATIONS" in normalized
-            and component_start is None
+            component_start is None
+            and "COMPONENTRECOMMENDATIONS" in normalized
         ):
 
             component_start = index
 
         elif (
-            "BILLOFMATERIALS" in normalized
-            and bom_start is None
+            bom_start is None
+            and "BILLOFMATERIALS" in normalized
         ):
 
             bom_start = index
 
         elif (
-            "WIRINGANDSAFETYPLAN" in normalized
-            and wiring_start is None
+            wiring_start is None
+            and (
+                "WIRINGANDSAFETYPLAN" in normalized
+                or normalized.startswith("WIRING")
+            )
         ):
 
             wiring_start = index
@@ -532,13 +516,17 @@ def extract_pdf_sections(content):
 
     if component_start is not None:
 
-        end = (
-            bom_start
-            if bom_start is not None
-            else wiring_start
-            if wiring_start is not None
-            else len(lines)
-        )
+        possible_ends = [
+            pos
+            for pos in (
+                bom_start,
+                wiring_start,
+                len(lines)
+            )
+            if pos is not None and pos > component_start
+        ]
+
+        end = min(possible_ends)
 
         component_text = "\n".join(
             lines[component_start + 1:end]
@@ -546,11 +534,16 @@ def extract_pdf_sections(content):
 
     if bom_start is not None:
 
-        end = (
-            wiring_start
-            if wiring_start is not None
-            else len(lines)
-        )
+        possible_ends = [
+            pos
+            for pos in (
+                wiring_start,
+                len(lines)
+            )
+            if pos is not None and pos > bom_start
+        ]
+
+        end = min(possible_ends)
 
         bom_text = "\n".join(
             lines[bom_start + 1:end]
@@ -560,34 +553,80 @@ def extract_pdf_sections(content):
 
 
 # =========================================================
-# PDF GENERATOR
+# PARSE MARKDOWN TABLE
+# =========================================================
+
+def parse_markdown_table(section_text):
+
+    rows = []
+    extra_lines = []
+
+    for raw_line in section_text.splitlines():
+
+        line = raw_line.strip()
+
+        if not line:
+            continue
+
+        if line.startswith("|") and line.endswith("|"):
+
+            cells = [
+                cell.strip()
+                for cell in line.strip("|").split("|")
+            ]
+
+            if cells and all(
+                re.fullmatch(
+                    r"\s*:?-{2,}:?\s*",
+                    cell
+                )
+                for cell in cells
+            ):
+                continue
+
+            if cells:
+                rows.append(cells)
+
+        else:
+
+            extra_lines.append(line)
+
+    return rows, extra_lines
+
+
+# =========================================================
+# PROFESSIONAL PDF GENERATOR
 # =========================================================
 
 def generate_pdf(content):
 
     if not content:
+
         raise ValueError(
-            "No component recommendations available."
+            "No component recommendations are available yet."
         )
 
-    component_text, bom_text = extract_pdf_sections(content)
+    component_text, bom_text = extract_pdf_sections(
+        content
+    )
 
     if not component_text and not bom_text:
 
         raise ValueError(
-            "Could not find the component recommendation "
-            "and BOM sections. Generate the final recommendations "
-            "first."
+            "Could not find the Component Recommendations "
+            "and BOM sections. Generate final recommendations first."
         )
 
     buffer = BytesIO()
 
-    page_width, page_height = A4
+    page_width, _ = A4
 
     left_margin = 17 * mm
     right_margin = 17 * mm
 
-    usable_width = page_width - left_margin - right_margin
+    usable_width = (
+        page_width - left_margin - right_margin
+    )
 
     document = SimpleDocTemplate(
 
@@ -599,151 +638,108 @@ def generate_pdf(content):
 
         leftMargin=left_margin,
 
-        topMargin=16 * mm,
+        topMargin=15 * mm,
 
-        bottomMargin=17 * mm
+        bottomMargin=16 * mm,
+
+        title="ElectroMind AI Component Report",
+
+        author="ElectroMind AI"
     )
 
     styles = getSampleStyleSheet()
 
     title_style = ParagraphStyle(
-
-        "ReportTitle",
-
+        "EMTitle",
         parent=styles["Title"],
-
-        fontSize=22,
-
-        leading=27,
-
+        fontSize=21,
+        leading=25,
         textColor=colors.HexColor("#0369A1"),
-
         alignment=0,
-
-        spaceAfter=5
-    )
-
-    subtitle_style = ParagraphStyle(
-
-        "ReportSubtitle",
-
-        parent=styles["Normal"],
-
-        fontSize=10,
-
-        leading=14,
-
-        textColor=colors.HexColor("#64748B"),
-
         spaceAfter=4
     )
 
+    subtitle_style = ParagraphStyle(
+        "EMSubtitle",
+        parent=styles["Normal"],
+        fontSize=9.5,
+        leading=13,
+        textColor=colors.HexColor("#64748B"),
+        spaceAfter=3
+    )
+
     heading_style = ParagraphStyle(
-
-        "SectionHeading",
-
+        "EMHeading",
         parent=styles["Heading2"],
-
-        fontSize=14,
-
-        leading=18,
-
+        fontSize=13,
+        leading=17,
         textColor=colors.HexColor("#0369A1"),
-
-        spaceBefore=13,
-
-        spaceAfter=8
+        spaceBefore=12,
+        spaceAfter=7,
+        keepWithNext=True
     )
 
     body_style = ParagraphStyle(
-
-        "ReportBody",
-
+        "EMBody",
         parent=styles["BodyText"],
-
-        fontSize=8.7,
-
-        leading=12.5,
-
+        fontSize=8.5,
+        leading=12,
         textColor=colors.HexColor("#334155"),
-
         spaceAfter=3
     )
 
     component_style = ParagraphStyle(
-
-        "ComponentTitle",
-
+        "EMComponent",
         parent=body_style,
-
-        fontSize=9.5,
-
-        leading=13,
-
+        fontSize=9.2,
+        leading=12.5,
         textColor=colors.HexColor("#0F172A"),
-
-        spaceBefore=7,
-
-        spaceAfter=3
+        spaceBefore=6,
+        spaceAfter=3,
+        keepWithNext=True
     )
 
     small_style = ParagraphStyle(
-
-        "SmallText",
-
+        "EMSmall",
         parent=styles["BodyText"],
-
-        fontSize=7.8,
-
-        leading=10.5,
-
+        fontSize=7.6,
+        leading=10,
         textColor=colors.HexColor("#334155")
     )
 
     header_style = ParagraphStyle(
-
-        "TableHeader",
-
+        "EMTableHeader",
         parent=small_style,
-
-        fontSize=8,
-
-        leading=10,
-
+        fontSize=7.7,
+        leading=9.5,
         textColor=colors.white
     )
 
-    story = []
+    story = [
 
-    # ---------------- HEADER ----------------
-
-    story.append(
         Paragraph(
             "ELECTROMIND AI",
             title_style
-        )
-    )
+        ),
 
-    story.append(
         Paragraph(
             "Electronic Component Recommendation Report",
             subtitle_style
-        )
-    )
+        ),
 
-    story.append(
         Paragraph(
             "Generated: "
             + datetime.now().strftime("%d %B %Y"),
             small_style
-        )
-    )
+        ),
 
-    story.append(
-        Spacer(1, 10)
-    )
+        Spacer(1, 9)
 
-    # ---------------- COMPONENTS ----------------
+    ]
+
+    # -----------------------------------------------------
+    # COMPONENT RECOMMENDATIONS
+    # -----------------------------------------------------
 
     if component_text:
 
@@ -754,44 +750,25 @@ def generate_pdf(content):
             )
         )
 
-        lines = component_text.splitlines()
+        for raw_line in component_text.splitlines():
 
-        for line in lines:
+            line = raw_line.strip()
 
-            line = line.strip()
+            if not line or line.startswith("|"):
+                continue
 
-            if not line:
+            if re.fullmatch(r"[-:\s|]+", line):
                 continue
 
             line = clean_pdf_text(line)
 
-            line = re.sub(
-                r"^\s*[-*•]+\s*",
-                "",
-                line
-            )
-
             if not line:
                 continue
 
-            if line.startswith("|"):
-                continue
-
-            if re.fullmatch(
-                r"[-:\s|]+",
-                line
-            ):
-                continue
-
-            if re.match(
-                r"^\d+[\.)]\s*",
-                line
-            ):
+            if re.match(r"^\d+[.)]\s*", line):
 
                 story.append(
                     KeepTogether([
-
-                        Spacer(1, 4),
 
                         Paragraph(
                             "<b>" + escape(line) + "</b>",
@@ -803,6 +780,12 @@ def generate_pdf(content):
 
             else:
 
+                line = re.sub(
+                    r"^[-*•]\s*",
+                    "",
+                    line
+                )
+
                 story.append(
                     Paragraph(
                         "&#8226; " + escape(line),
@@ -810,7 +793,9 @@ def generate_pdf(content):
                     )
                 )
 
-    # ---------------- BILL OF MATERIALS ----------------
+    # -----------------------------------------------------
+    # BILL OF MATERIALS
+    # -----------------------------------------------------
 
     if bom_text:
 
@@ -821,49 +806,34 @@ def generate_pdf(content):
             )
         )
 
-        table_data = []
-        extra_bom_lines = []
+        table_rows, extra_bom_lines = parse_markdown_table(
+            bom_text
+        )
 
-        for line in bom_text.splitlines():
-
-            line = line.strip()
-
-            if line.startswith("|"):
-
-                cells = [
-                    cell.strip()
-                    for cell in line.strip("|").split("|")
-                ]
-
-                if all(
-                    re.fullmatch(r"[-:\s]+", cell or "-")
-                    for cell in cells
-                ):
-                    continue
-
-                if cells:
-                    table_data.append(cells)
-
-            elif line:
-
-                extra_bom_lines.append(line)
-
-        if table_data:
+        if table_rows:
 
             column_count = max(
                 len(row)
-                for row in table_data
+                for row in table_rows
             )
 
-            # Four-column BOM table.
+            normalized_rows = [
+
+                row + [""] * (
+                    column_count - len(row)
+                )
+
+                for row in table_rows
+
+            ]
 
             if column_count == 4:
 
                 proportions = [
                     0.30,
-                    0.10,
-                    0.38,
-                    0.22
+                    0.11,
+                    0.36,
+                    0.23
                 ]
 
             else:
@@ -873,44 +843,36 @@ def generate_pdf(content):
                 ] * column_count
 
             widths = [
-                usable_width * proportion
-                for proportion in proportions
+                usable_width * part
+                for part in proportions
             ]
 
-            formatted_data = []
+            formatted_rows = []
 
-            for row_index, row in enumerate(table_data):
+            for row_index, row in enumerate(
+                normalized_rows
+            ):
 
-                row = row + (
-                    [""] * (column_count - len(row))
+                style = (
+                    header_style
+                    if row_index == 0
+                    else small_style
                 )
 
-                formatted_row = []
+                formatted_rows.append([
 
-                for cell in row:
-
-                    cell_text = escape(
-                        clean_pdf_text(cell)
+                    Paragraph(
+                        escape(clean_pdf_text(cell)),
+                        style
                     )
 
-                    style = (
-                        header_style
-                        if row_index == 0
-                        else small_style
-                    )
+                    for cell in row
 
-                    formatted_row.append(
-                        Paragraph(
-                            cell_text,
-                            style
-                        )
-                    )
+                ])
 
-                formatted_data.append(formatted_row)
+            bom_table = Table(
 
-            table = Table(
-
-                formatted_data,
+                formatted_rows,
 
                 colWidths=widths,
 
@@ -919,11 +881,13 @@ def generate_pdf(content):
                 hAlign="LEFT",
 
                 splitByRow=1
+
             )
 
-            table.setStyle(
+            # CORRECTED TABLE STYLE SYNTAX
 
-                TableStyle([]
+            bom_table.setStyle(
+                TableStyle([
 
                     (
                         "BACKGROUND",
@@ -968,21 +932,381 @@ def generate_pdf(content):
                         "LEFTPADDING",
                         (0, 0),
                         (-1, -1),
-                        6
+                        5
                     ),
 
                     (
                         "RIGHTPADDING",
                         (0, 0),
                         (-1, -1),
-                        6
+                        5
                     ),
 
                     (
                         "TOPPADDING",
                         (0, 0),
                         (-1, -1),
-                        7
+                        6
                     ),
 
-                    () 
+                    (
+                        "BOTTOMPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        6
+                    )
+
+                ])
+            )
+
+            story.append(bom_table)
+
+        for line in extra_bom_lines:
+
+            cleaned = clean_pdf_text(line)
+
+            if cleaned:
+
+                story.append(
+                    Paragraph(
+                        escape(cleaned),
+                        body_style
+                    )
+                )
+
+    # -----------------------------------------------------
+    # FOOTER
+    # -----------------------------------------------------
+
+    story.extend([
+
+        Spacer(1, 15),
+
+        Paragraph(
+            "<b>Technical Disclaimer:</b> Verify component "
+            "specifications, electrical compatibility, current "
+            "requirements and manufacturer datasheets before "
+            "implementation.",
+            small_style
+        ),
+
+        Spacer(1, 7),
+
+        Paragraph(
+            "Generated by ElectroMind AI",
+            small_style
+        )
+
+    ])
+
+    document.build(story)
+
+    buffer.seek(0)
+
+    return buffer.getvalue()
+
+
+# =========================================================
+# SIDEBAR
+# =========================================================
+
+with st.sidebar:
+
+    st.markdown("# ⚡ ElectroMind AI")
+
+    st.caption(
+        "Your Electronic Engineering Assistant"
+    )
+
+    st.divider()
+
+    st.markdown("### Navigation")
+
+    st.info("💬 Component Recommender")
+
+    st.markdown("### Capabilities")
+
+    st.write("• AI Project Analysis")
+    st.write("• Smart Component Selection")
+    st.write("• Alternative Components")
+    st.write("• Wiring Assistance")
+    st.write("• Budget Optimization")
+    st.write("• Technical Specifications")
+    st.write("• BOM Generation")
+    st.write("• PDF Project Reports")
+
+    st.divider()
+
+    st.markdown("### AI Engine")
+
+    try:
+
+        get_gemini_client()
+
+        st.success("Gemini AI Connected")
+
+    except Exception:
+
+        st.error("Gemini AI Not Connected")
+
+    st.caption(f"Model: {MODEL_NAME}")
+
+    st.divider()
+
+    if st.button(
+        "🗑️ New Conversation",
+        use_container_width=True
+    ):
+
+        st.session_state.messages = []
+        st.session_state.report_content = ""
+        st.session_state.project_started = False
+        st.session_state.api_error = ""
+
+        st.rerun()
+
+    st.caption("ElectroMind AI | Version 1.5")
+
+
+# =========================================================
+# MAIN HEADER
+# =========================================================
+
+st.markdown(
+    '<div class="main-title">⚡ ElectroMind AI</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="subtitle">'
+    'AI-Powered Electronic Component Recommender'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.divider()
+
+
+# =========================================================
+# WELCOME SCREEN
+# =========================================================
+
+if not st.session_state.messages:
+
+    st.markdown("## Welcome, Engineer! 👋")
+
+    st.write(
+        "Tell me about your electronics project. "
+        "I'll understand your requirements, ask technical "
+        "questions and help you select suitable components."
+    )
+
+    st.markdown("### What can I help you with?")
+
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.info("🔧 Component Selection")
+
+    with col2:
+        st.info("⚡ Circuit & Wiring")
+
+    with col3:
+        st.info("💰 Budget Optimization")
+
+    st.caption(
+        "Start by describing your project in the chat box below."
+    )
+
+
+# =========================================================
+# CHAT HISTORY
+# =========================================================
+
+st.markdown("### 💬 Project Conversation")
+
+for message in st.session_state.messages:
+
+    avatar = (
+        "🧑‍💻"
+        if message["role"] == "user"
+        else "⚡"
+    )
+
+    with st.chat_message(
+        message["role"],
+        avatar=avatar
+    ):
+
+        st.markdown(
+            message["content"]
+        )
+
+
+# =========================================================
+# ERROR DISPLAY
+# =========================================================
+
+if st.session_state.api_error:
+
+    st.error(
+        st.session_state.api_error
+    )
+
+
+# =========================================================
+# PROJECT TOOLS
+# =========================================================
+
+st.divider()
+
+st.markdown("### 🛠️ Project Tools")
+
+tool_prompts = {
+
+    "🔌 Wiring Guide": """
+Based on our project discussion, generate a wiring guide.
+
+Use a clear connection table with:
+Component, Component Pin, Controller/Power Pin and Notes.
+
+Explain signal and power connections separately.
+Mention voltage compatibility and current requirements.
+Mark connections that need datasheet verification.
+Do not invent pin assignments.
+""",
+
+    "⚖️ Compare Components": """
+Compare the recommended components with their alternatives.
+
+Use a table with:
+Component, Voltage, Performance, Interface,
+Advantages, Limitations and Estimated Price.
+
+Clearly identify unverified specifications.
+""",
+
+    "💰 Optimize Budget": """
+Optimize our component selection for the user's stated budget.
+
+Suggest cost-effective alternatives while preserving
+essential performance and electrical compatibility.
+
+Show estimated prices in INR and approximate total cost.
+Explain compromises.
+Do not invent live market prices.
+""",
+
+    "📋 Generate BOM": """
+Generate a complete Bill of Materials using our project requirements.
+
+Use the heading:
+
+## BILL OF MATERIALS (BOM)
+
+Use a Markdown table with:
+Component Name, Quantity, Purpose and Estimated Price (INR).
+
+Include the estimated total project cost.
+Do not invent unavailable information.
+"""
+
+}
+
+tool_columns = st.columns(2)
+
+selected_tool_prompt = None
+
+for index, (label, prompt) in enumerate(
+    tool_prompts.items()
+):
+
+    with tool_columns[index % 2]:
+
+        if st.button(
+            label,
+            use_container_width=True,
+            key=f"tool_{index}"
+        ):
+
+            selected_tool_prompt = prompt
+
+
+if selected_tool_prompt:
+
+    if not st.session_state.messages:
+
+        st.warning(
+            "Please describe your electronics project first."
+        )
+
+    else:
+
+        process_message(selected_tool_prompt)
+
+        st.rerun()
+
+
+# =========================================================
+# PDF REPORT DOWNLOAD
+# =========================================================
+
+st.divider()
+
+st.markdown("### 📄 Component Recommendation Report")
+
+if st.session_state.report_content:
+
+    try:
+
+        pdf_data = generate_pdf(
+            st.session_state.report_content
+        )
+
+        st.download_button(
+
+            label="⬇️ Download Component Report (PDF)",
+
+            data=pdf_data,
+
+            file_name="ElectroMind_Component_Report.pdf",
+
+            mime="application/pdf",
+
+            use_container_width=True
+
+        )
+
+        st.caption(
+            "The PDF includes component recommendations and BOM only. "
+            "Chat history and wiring discussion are excluded."
+        )
+
+    except Exception as error:
+
+        st.warning(
+            f"PDF generation issue: {error}"
+        )
+
+else:
+
+    st.info(
+        "Your report will appear here after ElectroMind AI "
+        "generates the final component recommendations and BOM."
+    )
+
+
+# =========================================================
+# CHAT INPUT
+# KEEP THIS AT THE END OF THE SCRIPT
+# =========================================================
+
+user_input = st.chat_input(
+    "Describe your electronics project or ask a question..."
+)
+
+if user_input:
+
+    process_message(user_input)
+
+    st.rerun()
